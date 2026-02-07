@@ -239,10 +239,37 @@ go get filippo.io/age/armor
    - File can contain multiple keys
    - For diary CLI, we use first identity only
 
+## Markdown Rendering
+
+### Phase 1-3 (MVP): Use glow CLI
+
+For `read` command, pipe decrypted markdown to `glow` for terminal rendering:
+
+```go
+func displayMarkdown(plaintext []byte) error {
+    cmd := exec.Command("glow", "-")
+    cmd.Stdin = bytes.NewReader(plaintext)
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    return cmd.Run()
+}
+
+// Usage in read command
+plaintext, _ := crypto.Decrypt(ciphertext, keyPath)
+if err := displayMarkdown(plaintext); err != nil {
+    // Fallback: just print plain text
+    fmt.Println(string(plaintext))
+}
+```
+
+**Fallback:** If `glow` not installed, display plain text.
+
+**Future:** Build custom markdown renderer when needed.
+
 ## Next Steps
 
 1. Add age dependencies to go.mod
 2. Implement `internal/crypto/age.go` following patterns above
 3. Write unit tests
 4. Test encrypt/decrypt round-trip
-5. Move to Phase 2: implement read/append commands
+5. Move to Phase 2: implement read/append commands with glow rendering
