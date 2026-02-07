@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/neilguion/diary-cli/internal/crypto"
+	"github.com/neilguion/diary-cli/internal/editor"
 	"github.com/neilguion/diary-cli/internal/git"
 	"github.com/neilguion/diary-cli/internal/setup"
 	"github.com/neilguion/diary-cli/internal/storage"
@@ -268,13 +269,82 @@ func handleEdit(user string, args []string) {
 	var date string
 	if len(args) > 0 {
 		date = args[0]
-	}
-	// TODO: Implement edit
-	if date == "" {
-		fmt.Printf("TODO: Edit today's entry for %s\n", user)
 	} else {
-		fmt.Printf("TODO: Edit entry for %s on %s\n", user, date)
+		// Default to today
+		date = time.Now().Format("2006-01-02")
 	}
+
+	// Get paths
+	keyPath, err := crypto.KeyPath(user)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	entryPath, err := storage.DiaryPath(user, date)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Load identity for encryption
+	identity, err := crypto.LoadIdentity(keyPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to load key: %v\n", err)
+		os.Exit(1)
+	}
+	recipient := identity.Recipient().String()
+
+	// Get existing content (if exists)
+	var initialContent []byte
+	if fileExists(entryPath) {
+		encrypted, err := os.ReadFile(entryPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to read entry: %v\n", err)
+			os.Exit(1)
+		}
+
+		plaintext, err := crypto.Decrypt(encrypted, keyPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to decrypt entry: %v\n", err)
+			os.Exit(1)
+		}
+		initialContent = plaintext
+	}
+
+	// Open in editor
+	editedContent, err := editor.Open(initialContent)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: editor failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Check if content changed
+	if bytes.Equal(editedContent, initialContent) {
+		fmt.Fprintf(os.Stderr, "No changes made\n")
+		return
+	}
+
+	// Encrypt and save
+	encrypted, err := crypto.Encrypt(editedContent, recipient)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to encrypt: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := os.WriteFile(entryPath, encrypted, 0600); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to write entry: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Auto-commit
+	if git.IsGitRepo(user) {
+		if err := git.AutoCommit(user, date); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: git commit failed: %v\n", err)
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "✓ Saved diary entry for %s (%s)\n", user, date)
 }
 
 func handleList(user string, args []string) {
@@ -285,8 +355,8 @@ func handleList(user string, args []string) {
 	}
 
 	if len(entries) == 0 {
-		fmt.Printf("No diary entries found for user '%s'\n", user)
-		return
+		// No entries - silent exit for greppability
+		os.Exit(0)
 	}
 
 	// Sort descending (newest first)
@@ -294,11 +364,10 @@ func handleList(user string, args []string) {
 		return entries[i] > entries[j]
 	})
 
-	fmt.Printf("Diary entries for %s:\n\n", user)
+	// Clean output: one date per line, no fluff
 	for _, date := range entries {
-		fmt.Printf("  %s\n", date)
+		fmt.Println(date)
 	}
-	fmt.Printf("\nTotal: %d entries\n", len(entries))
 }
 
 func handleSearch(user string, args []string) {
