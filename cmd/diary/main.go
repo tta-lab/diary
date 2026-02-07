@@ -197,10 +197,10 @@ func handleRead(user string, args []string) {
 
 	// Display based on mode
 	if useTUI {
-		// TUI mode: use glow with header
-		fmt.Fprintf(os.Stderr, "📖 Diary entry for %s (%s):\n\n", user, date)
+		// TUI mode: use glow (no header needed, glow handles display)
 		if err := displayWithGlow(plaintext); err != nil {
-			// Fallback: plain text
+			// Fallback: plain text with header
+			fmt.Fprintf(os.Stderr, "📖 Diary entry for %s (%s):\n\n", user, date)
 			fmt.Println(string(plaintext))
 		}
 	} else {
