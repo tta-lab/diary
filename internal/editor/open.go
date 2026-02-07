@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // Open opens the content in the user's preferred editor
@@ -25,11 +26,28 @@ func Open(initialContent []byte) ([]byte, error) {
 	}
 	tmpFile.Close()
 
-	// Open in editor
-	cmd := exec.Command(editor, tmpFile.Name())
+	// Parse editor command (might have args like "code --wait")
+	editorParts := strings.Fields(editor)
+	if len(editorParts) == 0 {
+		return nil, fmt.Errorf("editor command is empty")
+	}
+
+	// Build command with editor args + file path
+	args := append(editorParts[1:], tmpFile.Name())
+	cmd := exec.Command(editorParts[0], args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// Some editors (like helix) need access to /dev/tty
+	// Open the controlling terminal
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err == nil {
+		defer tty.Close()
+		cmd.Stdin = tty
+		cmd.Stdout = tty
+		cmd.Stderr = tty
+	}
 
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("editor exited with error: %w", err)
