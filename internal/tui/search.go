@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -83,17 +84,19 @@ func (r SearchResult) FilterValue() string {
 
 // Model is the bubbletea model for search TUI
 type Model struct {
-	user       string
-	searchTerm string
-	results    []SearchResult
-	list       list.Model
-	viewport   viewport.Model
-	ready      bool
-	width      int
-	height     int
-	keyPath    string
-	quitting   bool
-	openDate   string // Set when user wants to open full entry
+	user        string
+	searchTerm  string
+	results     []SearchResult
+	list        list.Model
+	viewport    viewport.Model
+	searchInput textinput.Model
+	inputMode   bool   // True when user is typing search term
+	ready       bool
+	width       int
+	height      int
+	keyPath     string
+	quitting    bool
+	openDate    string // Set when user wants to open full entry
 }
 
 type searchCompleteMsg struct {
@@ -102,17 +105,40 @@ type searchCompleteMsg struct {
 
 // NewSearchModel creates a new search TUI model
 func NewSearchModel(user, searchTerm, keyPath string) Model {
+	// Initialize search input
+	ti := textinput.New()
+	ti.Placeholder = "Enter search term..."
+	ti.Focus()
+	ti.CharLimit = 100
+	ti.Width = 50
+
+	// If no search term provided, start in input mode
+	inputMode := searchTerm == ""
+	if inputMode {
+		ti.SetValue("")
+	} else {
+		ti.SetValue(searchTerm)
+		ti.Blur()
+	}
+
 	return Model{
-		user:       user,
-		searchTerm: searchTerm,
-		keyPath:    keyPath,
-		list:       list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
-		viewport:   viewport.New(0, 0),
+		user:        user,
+		searchTerm:  searchTerm,
+		keyPath:     keyPath,
+		list:        list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
+		viewport:    viewport.New(0, 0),
+		searchInput: ti,
+		inputMode:   inputMode,
 	}
 }
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
+	if m.inputMode {
+		// Start in input mode, wait for user to enter term
+		return textinput.Blink
+	}
+	// Start search immediately if term provided
 	return m.performSearch
 }
 
@@ -254,35 +280,78 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "esc":
-			m.quitting = true
-			return m, tea.Quit
-
-		case "enter":
-			// Open selected entry in glow
-			if len(m.results) > 0 {
-				selected := m.list.SelectedItem()
-				if result, ok := selected.(SearchResult); ok {
-					m.openDate = result.date
+		// Handle input mode separately
+		if m.inputMode {
+			switch msg.String() {
+			case "enter":
+				// Start search with entered term
+				m.searchTerm = m.searchInput.Value()
+				if m.searchTerm != "" {
+					m.inputMode = false
+					m.searchInput.Blur()
+					return m, m.performSearch
+				}
+			case "esc":
+				if m.searchTerm == "" {
+					// No previous search, quit
+					m.quitting = true
 					return m, tea.Quit
+				}
+				// Cancel input, return to results
+				m.inputMode = false
+				m.searchInput.Blur()
+				m.searchInput.SetValue(m.searchTerm)
+			}
+		} else {
+			// Results mode
+			switch msg.String() {
+			case "q", "ctrl+c":
+				m.quitting = true
+				return m, tea.Quit
+
+			case "esc":
+				// Esc quits from results
+				m.quitting = true
+				return m, tea.Quit
+
+			case "/":
+				// Enter input mode for new search
+				m.inputMode = true
+				m.searchInput.Focus()
+				m.searchInput.SetValue("")
+				return m, textinput.Blink
+
+			case "enter":
+				// Open selected entry in glow
+				if len(m.results) > 0 {
+					selected := m.list.SelectedItem()
+					if result, ok := selected.(SearchResult); ok {
+						m.openDate = result.date
+						return m, tea.Quit
+					}
 				}
 			}
 		}
 	}
 
-	// Update list
-	m.list, cmd = m.list.Update(msg)
-	cmds = append(cmds, cmd)
+	// Update search input if in input mode
+	if m.inputMode {
+		m.searchInput, cmd = m.searchInput.Update(msg)
+		cmds = append(cmds, cmd)
+	} else {
+		// Update list only when not in input mode
+		m.list, cmd = m.list.Update(msg)
+		cmds = append(cmds, cmd)
 
-	// Update preview when selection changes
-	if len(m.results) > 0 {
-		m.updatePreview()
+		// Update preview when selection changes
+		if len(m.results) > 0 {
+			m.updatePreview()
+		}
+
+		// Update viewport
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
 	}
-
-	// Update viewport
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -361,7 +430,7 @@ func (m *Model) highlightTerm(text string) string {
 
 // View renders the UI
 func (m Model) View() string {
-	if !m.ready {
+	if !m.ready && !m.inputMode {
 		return "Searching...\n"
 	}
 
@@ -369,7 +438,23 @@ func (m Model) View() string {
 		return ""
 	}
 
-	help := helpStyle.Render("↑/↓: navigate • enter: view full entry • q: quit")
+	// Input mode view
+	if m.inputMode {
+		var help string
+		if m.searchTerm == "" {
+			help = helpStyle.Render("enter: search • esc/ctrl+c: quit")
+		} else {
+			help = helpStyle.Render("enter: search • esc: cancel")
+		}
+
+		return fmt.Sprintf("\n🔍 Search diary entries:\n\n%s\n\n%s",
+			m.searchInput.View(),
+			help,
+		)
+	}
+
+	// Results mode view
+	help := helpStyle.Render("↑/↓: navigate • enter: view full entry • /: new search • q: quit")
 
 	return fmt.Sprintf("%s\n\n%s\n%s",
 		m.list.View(),
@@ -381,4 +466,9 @@ func (m Model) View() string {
 // GetOpenDate returns the date to open (if user pressed Enter)
 func (m Model) GetOpenDate() string {
 	return m.openDate
+}
+
+// GetSearchTerm returns the current search term
+func (m Model) GetSearchTerm() string {
+	return m.searchTerm
 }

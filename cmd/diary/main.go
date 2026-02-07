@@ -92,7 +92,7 @@ Commands:
   append "text"      Append text to today's entry (auto-creates if needed)
   edit [date]        Open entry in $EDITOR (today if no date, or specific date)
   list               List all available diary entries for user
-  search "term"      Search across all diary entries for user
+  search ["term"]    Search across all diary entries (interactive if no term)
   import <dir>       Import markdown files (YYYY-MM-DD.md) from directory
 
 Global:
@@ -436,12 +436,11 @@ func handleList(user string, args []string) {
 }
 
 func handleSearch(user string, args []string) {
-	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "Error: search term required")
-		fmt.Fprintln(os.Stderr, "Usage: diary <user> search \"term\"")
-		os.Exit(1)
+	// Search term is optional - if not provided, start in input mode
+	term := ""
+	if len(args) >= 1 {
+		term = args[0]
 	}
-	term := args[0]
 
 	// Get key path
 	keyPath, err := crypto.KeyPath(user)
@@ -450,22 +449,32 @@ func handleSearch(user string, args []string) {
 		os.Exit(1)
 	}
 
-	// Launch interactive TUI
-	model := tui.NewSearchModel(user, term, keyPath)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	// Loop: TUI → view entry → return to TUI
+	for {
+		// Launch interactive TUI
+		model := tui.NewSearchModel(user, term, keyPath)
+		p := tea.NewProgram(model, tea.WithAltScreen())
 
-	finalModel, err := p.Run()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: TUI failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Check if user wants to open a specific entry
-	if m, ok := finalModel.(tui.Model); ok {
-		if openDate := m.GetOpenDate(); openDate != "" {
-			// Open in glow
-			handleRead(user, []string{openDate, "-t"})
+		finalModel, err := p.Run()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: TUI failed: %v\n", err)
+			os.Exit(1)
 		}
+
+		// Check if user wants to open a specific entry
+		if m, ok := finalModel.(tui.Model); ok {
+			if openDate := m.GetOpenDate(); openDate != "" {
+				// Open in glow
+				handleRead(user, []string{openDate, "-t"})
+
+				// After viewing, return to search with same term
+				term = m.GetSearchTerm()
+				continue
+			}
+		}
+
+		// User quit, exit loop
+		break
 	}
 }
 
