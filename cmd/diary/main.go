@@ -449,10 +449,17 @@ func handleSearch(user string, args []string) {
 		os.Exit(1)
 	}
 
+	// Track selection index across iterations
+	selectedIndex := 0
+
 	// Loop: TUI → view entry → return to TUI
 	for {
 		// Launch interactive TUI
 		model := tui.NewSearchModel(user, term, keyPath)
+
+		// Restore previous selection if returning from glow
+		model.SetSelectedIndex(selectedIndex)
+
 		p := tea.NewProgram(model, tea.WithAltScreen())
 
 		finalModel, err := p.Run()
@@ -464,10 +471,13 @@ func handleSearch(user string, args []string) {
 		// Check if user wants to open a specific entry
 		if m, ok := finalModel.(tui.Model); ok {
 			if openDate := m.GetOpenDate(); openDate != "" {
+				// Save current selection before opening glow
+				selectedIndex = m.GetSelectedIndex()
+
 				// Open in glow
 				handleRead(user, []string{openDate, "-t"})
 
-				// After viewing, return to search with same term
+				// After viewing, return to search with same term and selection
 				term = m.GetSearchTerm()
 				continue
 			}

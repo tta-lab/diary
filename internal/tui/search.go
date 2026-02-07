@@ -84,19 +84,20 @@ func (r SearchResult) FilterValue() string {
 
 // Model is the bubbletea model for search TUI
 type Model struct {
-	user        string
-	searchTerm  string
-	results     []SearchResult
-	list        list.Model
-	viewport    viewport.Model
-	searchInput textinput.Model
-	inputMode   bool   // True when user is typing search term
-	ready       bool
-	width       int
-	height      int
-	keyPath     string
-	quitting    bool
-	openDate    string // Set when user wants to open full entry
+	user          string
+	searchTerm    string
+	results       []SearchResult
+	list          list.Model
+	viewport      viewport.Model
+	searchInput   textinput.Model
+	inputMode     bool   // True when user is typing search term
+	ready         bool
+	width         int
+	height        int
+	keyPath       string
+	quitting      bool
+	openDate      string // Set when user wants to open full entry
+	initialIndex  int    // Initial selection index to restore
 }
 
 type searchCompleteMsg struct {
@@ -122,13 +123,14 @@ func NewSearchModel(user, searchTerm, keyPath string) Model {
 	}
 
 	return Model{
-		user:        user,
-		searchTerm:  searchTerm,
-		keyPath:     keyPath,
-		list:        list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
-		viewport:    viewport.New(0, 0),
-		searchInput: ti,
-		inputMode:   inputMode,
+		user:         user,
+		searchTerm:   searchTerm,
+		keyPath:      keyPath,
+		list:         list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
+		viewport:     viewport.New(0, 0),
+		searchInput:  ti,
+		inputMode:    inputMode,
+		initialIndex: 0,
 	}
 }
 
@@ -274,7 +276,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetItems(items)
 		m.list.Title = fmt.Sprintf("Search: \"%s\" (%d entries)", m.searchTerm, len(m.results))
 
-		// Update preview for first item
+		// Restore previous selection if set
+		if m.initialIndex > 0 && m.initialIndex < len(m.results) {
+			m.list.Select(m.initialIndex)
+		}
+
+		// Update preview for selected item
 		if len(m.results) > 0 {
 			m.updatePreview()
 		}
@@ -471,4 +478,15 @@ func (m Model) GetOpenDate() string {
 // GetSearchTerm returns the current search term
 func (m Model) GetSearchTerm() string {
 	return m.searchTerm
+}
+
+// GetSelectedIndex returns the currently selected list index
+func (m Model) GetSelectedIndex() int {
+	return m.list.Index()
+}
+
+// SetSelectedIndex sets the initial list selection index
+// This is applied after search results are loaded
+func (m *Model) SetSelectedIndex(index int) {
+	m.initialIndex = index
 }
