@@ -18,23 +18,36 @@ import (
 const version = "0.1.0"
 
 func main() {
-	if len(os.Args) < 3 {
+	// Handle global commands (no user needed)
+	if len(os.Args) >= 2 {
+		arg := os.Args[1]
+		if arg == "version" || arg == "--version" || arg == "-v" {
+			fmt.Printf("diary version %s\n", version)
+			return
+		}
+		if arg == "help" || arg == "--help" || arg == "-h" {
+			printUsage()
+			return
+		}
+	}
+
+	// Need at least user argument
+	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
 	}
 
 	user := os.Args[1]
-	command := os.Args[2]
-	args := os.Args[3:]
+	var command string
+	var args []string
 
-	// Handle global commands (no user needed)
-	if user == "version" || user == "--version" || user == "-v" {
-		fmt.Printf("diary version %s\n", version)
-		return
-	}
-	if user == "help" || user == "--help" || user == "-h" {
-		printUsage()
-		return
+	// If only user provided: default to read with glow (quick view)
+	if len(os.Args) == 2 {
+		command = "read"
+		args = []string{"-t"} // Force TUI/glow mode
+	} else {
+		command = os.Args[2]
+		args = os.Args[3:]
 	}
 
 	// Ensure user setup (auto-creates key, directories, git repo on first use)
@@ -65,10 +78,11 @@ func printUsage() {
 	fmt.Println(`diary - Encrypted multi-user diary management
 
 Usage:
-  diary <user> <command> [arguments]
+  diary <user> [command] [arguments]
 
 Commands:
-  read [date]        Show diary entry (latest if no date, or specific date)
+  (none)             Quick view: read latest entry with glow (default)
+  read [date] [-t]   Show diary entry (plain text by default, -t for glow)
   append "text"      Append text to today's entry (auto-creates if needed)
   edit [date]        Open entry in $EDITOR (today if no date, or specific date)
   list               List all available diary entries for user
@@ -79,20 +93,21 @@ Global:
   help               Show this help message
 
 Examples:
-  # Agent usage (programmatic append)
-  diary yuki append "Completed task #107"
-  diary neil append "Meeting notes: Q2 planning"
+  # Quick view (human-friendly)
+  diary neil                   # Read latest with glow
 
-  # Human usage (interactive editing)
+  # Agent usage (plain text output)
+  diary yuki read              # Latest entry, plain text
+  diary yuki read 2026-02-07   # Specific date, plain text
+  diary yuki append "Completed task #107"
+
+  # Human usage
+  diary neil read -t           # Force glow rendering
   diary neil edit              # Edit today's entry
   diary neil edit 2026-02-07   # Edit specific date
 
-  # Reading
-  diary neil read              # Show latest entry
-  diary neil read 2026-02-07   # Show specific date
-  diary neil list              # Show all available dates
-
-  # Searching
+  # Listing and searching
+  diary neil list              # Show all dates (greppable)
   diary neil search "task #107"
 
 Multi-User:
@@ -104,9 +119,20 @@ For more information: https://github.com/neilguion/diary-cli`)
 }
 
 func handleRead(user string, args []string) {
+	// Check for -t flag (TUI/glow mode)
+	useTUI := false
+	var filteredArgs []string
+	for _, arg := range args {
+		if arg == "-t" || arg == "--tui" {
+			useTUI = true
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+
 	var date string
-	if len(args) > 0 {
-		date = args[0]
+	if len(filteredArgs) > 0 {
+		date = filteredArgs[0]
 	} else {
 		// Find latest entry
 		entries, err := storage.ListEntries(user)
@@ -159,11 +185,17 @@ func handleRead(user string, args []string) {
 		os.Exit(1)
 	}
 
-	// Display with glow (fallback to plain if not available)
-	fmt.Fprintf(os.Stderr, "📖 Diary entry for %s (%s):\n\n", user, date)
-	if err := displayWithGlow(plaintext); err != nil {
-		// Fallback: plain text
-		fmt.Println(string(plaintext))
+	// Display based on mode
+	if useTUI {
+		// TUI mode: use glow with header
+		fmt.Fprintf(os.Stderr, "📖 Diary entry for %s (%s):\n\n", user, date)
+		if err := displayWithGlow(plaintext); err != nil {
+			// Fallback: plain text
+			fmt.Println(string(plaintext))
+		}
+	} else {
+		// Plain mode: just output text (for agents/scripts)
+		fmt.Print(string(plaintext))
 	}
 }
 
