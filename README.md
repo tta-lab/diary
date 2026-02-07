@@ -30,7 +30,26 @@ sudo mv diary /usr/local/bin/
 
 ## Setup
 
-### 1. Generate encryption key
+**Auto-setup on first use!** 🎉
+
+When you run any diary command for the first time, the CLI automatically:
+1. Generates an age encryption key for your user
+2. Creates `~/.diary/${USER}/` directory
+3. Initializes a git repository (if not exists)
+4. Sets up `.gitignore` to exclude keys
+
+Just start using it:
+
+```bash
+# First time use - everything auto-configured
+diary neil edit
+
+# That's it! Key generated, storage created, ready to go.
+```
+
+### Manual setup (optional)
+
+If you prefer manual control:
 
 ```bash
 # Install age if not already installed
@@ -42,11 +61,8 @@ mkdir -p ~/.config/diary
 age-keygen -o ~/.config/diary/${USER}.age.key
 
 # IMPORTANT: Back up this key! If lost, diaries cannot be recovered
-```
 
-### 2. Initialize diary storage
-
-```bash
+# Create diary directory
 mkdir -p ~/.diary/${USER}
 
 # Optional: Initialize as git repository for version control
@@ -59,14 +75,26 @@ git commit -m "chore(diary): initialize diary repository"
 
 ## Usage
 
+### Quick view (default)
+
+```bash
+# Read latest entry with glow (beautiful markdown rendering)
+diary neil
+
+# Same as: diary neil read -t
+```
+
 ### Write diary entry
 
 ```bash
-# Append to today's diary
-diary append $(date +%Y-%m-%d)
+# Edit today's diary
+diary neil edit
 
-# Append to specific date
-diary append 2026-02-07
+# Edit specific date
+diary neil edit 2026-02-07
+
+# Append text (for agents/scripts)
+diary neil append "Completed task #107"
 ```
 
 Your `$EDITOR` will open with the decrypted content (if entry exists) or blank file (if new).
@@ -75,29 +103,45 @@ Save and exit - the entry will be encrypted and auto-committed.
 ### Read diary entry
 
 ```bash
-# Read today's diary
-diary read $(date +%Y-%m-%d)
+# Read latest entry (plain text)
+diary neil read
+
+# Read with glow rendering (human-friendly)
+diary neil read -t
 
 # Read specific date
-diary read 2026-02-07
+diary neil read 2026-02-07
 ```
 
 ### List entries
 
 ```bash
-# List all entries
-diary list
+# List all entries (greppable output)
+diary neil list
 
-# List with filter (TODO)
-diary list 2026-02
+# Output: one date per line, newest first
+# 2026-02-07
+# 2026-02-05
+# 2026-02-01
 ```
 
-### Search
+### Search (Interactive TUI)
 
 ```bash
 # Search across all entries
-diary search "keyword"
+diary neil search "encryption"
 ```
+
+**Interactive TUI features:**
+- 📋 Top pane: List of matching entries with match counts
+- 👁️ Bottom pane: Live preview with highlighted search terms
+- ⌨️ Navigation: Arrow keys to select, Enter to view full entry in glow
+- 🚪 Quit: Press 'q' or Esc
+
+**Performance:**
+- Parallel decryption for fast search
+- Streams results as they're found
+- Works efficiently with hundreds of entries
 
 ## Storage Structure
 
@@ -163,20 +207,29 @@ Each user's diaries are isolated and cannot be read by others without the key.
 
 ## Development Status
 
-**Current**: v0.1.0 - Initial structure, commands stubbed
+**Current**: v0.2.0 - Core features complete
+
+**Implemented** ✅:
+- [x] Age encryption/decryption with armor encoding
+- [x] Read command (plain + glow rendering)
+- [x] Append command (for agents/scripts)
+- [x] Edit command (opens $EDITOR, works with all editors)
+- [x] List command (greppable output)
+- [x] Search command (interactive TUI with bubbletea)
+- [x] Git auto-commit integration
+- [x] Multi-user support with auto-setup
+- [x] Markdown rendering with glow
+- [x] Error handling
+- [x] Tests for core encryption
+- [x] Basic documentation
 
 **TODO**:
-- [ ] Implement age encryption/decryption
-- [ ] Implement read command
-- [ ] Implement append command with editor
-- [ ] Implement list command
-- [ ] Implement search command
-- [ ] Git auto-commit integration
-- [ ] Configuration file support
-- [ ] Markdown rendering
-- [ ] Error handling
-- [ ] Tests
-- [ ] Documentation
+- [ ] Configuration file support (config.toml)
+- [ ] List with date filter (e.g., `list 2026-02`)
+- [ ] Export functionality
+- [ ] Search results export
+- [ ] Comprehensive test suite
+- [ ] CI/CD pipeline
 
 ## License
 

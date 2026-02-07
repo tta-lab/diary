@@ -76,6 +76,15 @@ func ListEntries(user string) ([]string, error) {
 	return dates, nil
 }
 
+// ReadEntry reads the encrypted content of a diary entry
+func ReadEntry(path string) ([]byte, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read entry: %w", err)
+	}
+	return content, nil
+}
+
 // isValidDate checks if a string is in YYYY-MM-DD format
 func isValidDate(s string) bool {
 	_, err := time.Parse("2006-01-02", s)

@@ -8,11 +8,13 @@ import (
 	"sort"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/neilguion/diary-cli/internal/crypto"
 	"github.com/neilguion/diary-cli/internal/editor"
 	"github.com/neilguion/diary-cli/internal/git"
 	"github.com/neilguion/diary-cli/internal/setup"
 	"github.com/neilguion/diary-cli/internal/storage"
+	"github.com/neilguion/diary-cli/internal/tui"
 )
 
 const version = "0.1.0"
@@ -432,6 +434,29 @@ func handleSearch(user string, args []string) {
 		os.Exit(1)
 	}
 	term := args[0]
-	// TODO: Implement search
-	fmt.Printf("TODO: Search for '%s' in %s's entries\n", term, user)
+
+	// Get key path
+	keyPath, err := crypto.KeyPath(user)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Launch interactive TUI
+	model := tui.NewSearchModel(user, term, keyPath)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+
+	finalModel, err := p.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: TUI failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Check if user wants to open a specific entry
+	if m, ok := finalModel.(tui.Model); ok {
+		if openDate := m.GetOpenDate(); openDate != "" {
+			// Open in glow
+			handleRead(user, []string{openDate, "-t"})
+		}
+	}
 }
