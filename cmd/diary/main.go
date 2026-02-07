@@ -205,11 +205,34 @@ func displayWithGlow(markdown []byte) error {
 		return err
 	}
 
+	// For TUI mode, glow needs a file (not stdin)
+	tmpFile, err := os.CreateTemp("", "diary-*.md")
+	if err != nil {
+		// Fallback to stdin mode
+		return displayWithGlowStdin(markdown)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(markdown); err != nil {
+		tmpFile.Close()
+		return displayWithGlowStdin(markdown)
+	}
+	tmpFile.Close()
+
+	// Open in pager mode (glow -p for interactive scrolling)
+	cmd := exec.Command("glow", "-p", tmpFile.Name())
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
+func displayWithGlowStdin(markdown []byte) error {
 	cmd := exec.Command("glow", "-")
 	cmd.Stdin = bytes.NewReader(markdown)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
 	return cmd.Run()
 }
 
