@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -69,6 +71,8 @@ func main() {
 		handleList(user, args)
 	case "search":
 		handleSearch(user, args)
+	case "import":
+		handleImport(user, args)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", command)
 		printUsage()
@@ -89,6 +93,7 @@ Commands:
   edit [date]        Open entry in $EDITOR (today if no date, or specific date)
   list               List all available diary entries for user
   search "term"      Search across all diary entries for user
+  import <dir>       Import markdown files (YYYY-MM-DD.md) from directory
 
 Global:
   version            Show version information
@@ -111,6 +116,9 @@ Examples:
   # Listing and searching
   diary neil list              # Show all dates (greppable)
   diary neil search "task #107"
+
+  # Import bulk entries
+  diary neil import ~/Documents/old-diary/  # Import YYYY-MM-DD.md files
 
 Multi-User:
   Each user has separate encryption key and storage:
@@ -458,5 +466,148 @@ func handleSearch(user string, args []string) {
 			// Open in glow
 			handleRead(user, []string{openDate, "-t"})
 		}
+	}
+}
+
+func handleImport(user string, args []string) {
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "Error: directory path required")
+		fmt.Fprintln(os.Stderr, "Usage: diary <user> import <directory>")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "Imports markdown files named YYYY-MM-DD.md from the specified directory")
+		os.Exit(1)
+	}
+
+	importDir := args[0]
+
+	// Check if directory exists
+	if !fileExists(importDir) {
+		fmt.Fprintf(os.Stderr, "Error: directory not found: %s\n", importDir)
+		os.Exit(1)
+	}
+
+	// Get key path
+	keyPath, err := crypto.KeyPath(user)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Load identity for encryption
+	identity, err := crypto.LoadIdentity(keyPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to load key: %v\n", err)
+		os.Exit(1)
+	}
+	recipient := identity.Recipient().String()
+
+	// Read directory
+	entries, err := os.ReadDir(importDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to read directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Filter for YYYY-MM-DD.md files
+	var imported int
+	var skipped int
+	var failed int
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".md") {
+			continue
+		}
+
+		// Extract date from filename
+		date := strings.TrimSuffix(name, ".md")
+
+		// Validate date format
+		if _, err := time.Parse("2006-01-02", date); err != nil {
+			fmt.Fprintf(os.Stderr, "⊘ Skipping %s (invalid date format)\n", name)
+			skipped++
+			continue
+		}
+
+		// Get destination path
+		destPath, err := storage.DiaryPath(user, date)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "✗ Failed %s: %v\n", name, err)
+			failed++
+			continue
+		}
+
+		// Check if already exists
+		if fileExists(destPath) {
+			fmt.Fprintf(os.Stderr, "⊘ Skipping %s (already exists)\n", name)
+			skipped++
+			continue
+		}
+
+		// Read source file
+		sourcePath := filepath.Join(importDir, name)
+		content, err := os.ReadFile(sourcePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "✗ Failed %s: %v\n", name, err)
+			failed++
+			continue
+		}
+
+		// Encrypt
+		encrypted, err := crypto.Encrypt(content, recipient)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "✗ Failed %s: encryption error: %v\n", name, err)
+			failed++
+			continue
+		}
+
+		// Write encrypted file
+		if err := os.WriteFile(destPath, encrypted, 0600); err != nil {
+			fmt.Fprintf(os.Stderr, "✗ Failed %s: %v\n", name, err)
+			failed++
+			continue
+		}
+
+		fmt.Fprintf(os.Stderr, "✓ Imported %s\n", date)
+		imported++
+	}
+
+	// Auto-commit if git repo exists
+	if imported > 0 && git.IsGitRepo(user) {
+		// Commit all imported files at once
+		home, _ := os.UserHomeDir()
+		diaryDir := filepath.Join(home, ".diary")
+
+		// Add all files in user directory
+		addCmd := exec.Command("git", "add", user+"/")
+		addCmd.Dir = diaryDir
+		if err := addCmd.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: git add failed: %v\n", err)
+		} else {
+			// Commit with bulk message
+			commitMsg := fmt.Sprintf("feat(diary): import %d entries", imported)
+			commitCmd := exec.Command("git", "commit", "-m", commitMsg)
+			commitCmd.Dir = diaryDir
+			if err := commitCmd.Run(); err != nil {
+				// Ignore "nothing to commit" errors
+				if !strings.Contains(err.Error(), "nothing to commit") {
+					fmt.Fprintf(os.Stderr, "Warning: git commit failed: %v\n", err)
+				}
+			}
+		}
+	}
+
+	// Summary
+	fmt.Fprintf(os.Stderr, "\n📊 Import Summary:\n")
+	fmt.Fprintf(os.Stderr, "   ✓ Imported: %d\n", imported)
+	if skipped > 0 {
+		fmt.Fprintf(os.Stderr, "   ⊘ Skipped:  %d\n", skipped)
+	}
+	if failed > 0 {
+		fmt.Fprintf(os.Stderr, "   ✗ Failed:   %d\n", failed)
 	}
 }
