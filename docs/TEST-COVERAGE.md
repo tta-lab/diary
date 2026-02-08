@@ -25,7 +25,7 @@
 - **28 tests** total, all passing
 - **High coverage** for critical data paths (crypto, storage, setup)
 - **Low coverage** for UI components (by design - hard to test)
-- **No external dependencies** (git, editor, glow skipped)
+- **No external dependencies** (git, editor, TUI skipped)
 - **Fast execution** (~2 seconds)
 - **CI-ready** (no flaky tests)
 
@@ -321,12 +321,12 @@ Search across all → Verify all matches found
 
 ---
 
-### 4. Glow Rendering
-**Why:** External dependency, requires TTY
+### 4. Glamour/Viewport Rendering
+**Why:** Requires TTY for interactive viewer
 
 **Skipped:**
-- Glow markdown rendering
-- Pager mode interaction
+- Glamour markdown rendering output
+- Viewport scrolling interaction
 - Terminal output
 
 **What's tested instead:**
@@ -441,7 +441,7 @@ TestAppendCommand()
   - Test full append workflow
 
 TestReadCommand()
-  - Test without glow rendering
+  - Test plain text mode (no TUI)
   - Plain text output verification
 
 TestImportCommandHandler()
@@ -538,7 +538,7 @@ If tests fail:
 
 ### Acceptable Gaps ⚠️
 
-- **Low coverage** for UI (editor, TUI, glow)
+- **Low coverage** for UI (editor, TUI, Glamour rendering)
   - *Reason:* Hard to test, low ROI
 - **No git tests**
   - *Reason:* External dependency

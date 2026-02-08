@@ -55,10 +55,10 @@ func main() {
 	var command string
 	var args []string
 
-	// If only user provided: default to read with glow (quick view)
+	// If only user provided: default to reading latest entry in interactive viewer
 	if len(os.Args) == 2 {
 		command = "read"
-		args = []string{"-t"} // Force TUI/glow mode
+		args = []string{"-t"} // Interactive TUI viewer
 	} else {
 		command = os.Args[2]
 		args = os.Args[3:]
@@ -97,8 +97,8 @@ Usage:
   diary <user> [command] [arguments]
 
 Commands:
-  (none)             Quick view: read latest entry with glow (default)
-  read [date] [-t]   Show diary entry (plain text by default, -t for glow)
+  (none)             Read latest entry in interactive viewer (default)
+  read [date] [-t]   Show diary entry (plain text by default, -t for interactive viewer)
   append "text"      Append text to today's entry (auto-creates if needed)
   edit [date]        Open entry in $EDITOR (today if no date, or specific date)
   list               List all available diary entries for user
@@ -110,8 +110,8 @@ Global:
   help               Show this help message
 
 Examples:
-  # Quick view (human-friendly)
-  diary neil                   # Read latest with glow
+  # Interactive viewer (human-friendly)
+  diary neil                   # Read latest in interactive viewer
 
   # Agent usage (plain text output)
   diary yuki read              # Latest entry, plain text
@@ -119,7 +119,7 @@ Examples:
   diary yuki append "Completed task #107"
 
   # Human usage
-  diary neil read -t           # Force glow rendering
+  diary neil read -t           # Read latest in interactive viewer
   diary neil edit              # Edit today's entry
   diary neil edit 2026-02-07   # Edit specific date
 
@@ -139,7 +139,7 @@ For more information: https://github.com/neilguion/diary-cli`)
 }
 
 func handleRead(user string, args []string) {
-	// Check for -t flag (TUI/glow mode)
+	// Check for -t flag (TUI/markdown mode)
 	useTUI := false
 	var filteredArgs []string
 	for _, arg := range args {
@@ -150,110 +150,78 @@ func handleRead(user string, args []string) {
 		}
 	}
 
-	var date string
-	if len(filteredArgs) > 0 {
-		date = filteredArgs[0]
-	} else {
-		// Find latest entry
-		entries, err := storage.ListEntries(user)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-
-		if len(entries) == 0 {
-			fmt.Fprintf(os.Stderr, "No diary entries found for user '%s'\n", user)
-			os.Exit(1)
-		}
-
-		// Sort descending and take first (latest)
-		sort.Slice(entries, func(i, j int) bool {
-			return entries[i] > entries[j]
-		})
-		date = entries[0]
+	// List all entries (needed for both TUI navigation and finding latest)
+	entries, err := storage.ListEntries(user)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Get paths
+	if len(entries) == 0 {
+		fmt.Fprintf(os.Stderr, "No diary entries found for user '%s'\n", user)
+		os.Exit(1)
+	}
+
+	// Sort descending (newest first)
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i] > entries[j]
+	})
+
+	// Determine starting date and index
+	startIndex := 0
+	if len(filteredArgs) > 0 {
+		date := filteredArgs[0]
+		found := false
+		for i, e := range entries {
+			if e == date {
+				startIndex = i
+				found = true
+				break
+			}
+		}
+		if !found {
+			fmt.Fprintf(os.Stderr, "No diary entry found for %s on %s\n", user, date)
+			os.Exit(1)
+		}
+	}
+
 	keyPath, err := crypto.KeyPath(user)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
-	entryPath, err := storage.DiaryPath(user, date)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Check if entry exists
-	if !fileExists(entryPath) {
-		fmt.Fprintf(os.Stderr, "No diary entry found for %s on %s\n", user, date)
-		os.Exit(1)
-	}
-
-	// Read and decrypt
-	encrypted, err := os.ReadFile(entryPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to read entry: %v\n", err)
-		os.Exit(1)
-	}
-
-	plaintext, err := crypto.Decrypt(encrypted, keyPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to decrypt entry: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Display based on mode
 	if useTUI {
-		// TUI mode: use glow (no header needed, glow handles display)
-		if err := displayWithGlow(plaintext); err != nil {
-			// Fallback: plain text with header
-			fmt.Fprintf(os.Stderr, "📖 Diary entry for %s (%s):\n\n", user, date)
-			fmt.Println(string(plaintext))
+		// Interactive TUI viewer with entry navigation (J/K)
+		model := tui.NewReaderModel(user, keyPath, entries, startIndex)
+		p := tea.NewProgram(model, tea.WithAltScreen())
+		if _, err := p.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: TUI failed: %v\n", err)
+			os.Exit(1)
 		}
 	} else {
-		// Plain mode: just output text (for agents/scripts)
+		// Plain mode: decrypt and output text (for agents/scripts)
+		date := entries[startIndex]
+		entryPath, err := storage.DiaryPath(user, date)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		encrypted, err := os.ReadFile(entryPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to read entry: %v\n", err)
+			os.Exit(1)
+		}
+
+		plaintext, err := crypto.Decrypt(encrypted, keyPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to decrypt entry: %v\n", err)
+			os.Exit(1)
+		}
+
 		fmt.Print(string(plaintext))
 	}
-}
-
-func displayWithGlow(markdown []byte) error {
-	// Check if glow is available
-	if _, err := exec.LookPath("glow"); err != nil {
-		return err
-	}
-
-	// For TUI mode, glow needs a file (not stdin)
-	tmpFile, err := os.CreateTemp("", "diary-*.md")
-	if err != nil {
-		// Fallback to stdin mode
-		return displayWithGlowStdin(markdown)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write(markdown); err != nil {
-		tmpFile.Close()
-		return displayWithGlowStdin(markdown)
-	}
-	tmpFile.Close()
-
-	// Open in pager mode (glow -p for interactive scrolling)
-	cmd := exec.Command("glow", "-p", tmpFile.Name())
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
-}
-
-func displayWithGlowStdin(markdown []byte) error {
-	cmd := exec.Command("glow", "-")
-	cmd.Stdin = bytes.NewReader(markdown)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
 }
 
 func handleAppend(user string, args []string) {

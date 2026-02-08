@@ -23,19 +23,29 @@ The diary search feature provides an interactive Terminal User Interface (TUI) f
 │  Started work on encryption feature         │    (bubbles/viewport)
 │                     ^^^^^^^^^^              │    with highlighting
 │                                             │
-│  Press Enter to view full entry in glow     │
+│  Press Enter to view full entry             │
 └─────────────────────────────────────────────┘
 
   ↑/↓: navigate • enter: view full entry • q: quit
 ```
 
+### View Modes
+
+The search TUI has three modes:
+
+1. **Input Mode** — user types a search term (shown when no term provided)
+2. **Search View** — split pane with results list and preview
+3. **Detail View** — full-screen Glamour-rendered markdown viewer with scrolling
+
 ### Tech Stack
 
-- **TUI Framework**: [Bubbletea](https://github.com/charmbracelet/bubbletea) - Elm-inspired TUI framework
+- **TUI Framework**: [Bubbletea](https://github.com/charmbracelet/bubbletea) — Elm-inspired TUI framework
+- **Markdown Rendering**: [Glamour](https://github.com/charmbracelet/glamour) — renders markdown to ANSI-styled strings
 - **Components**:
-  - `bubbles/list` - Selectable list of search results
-  - `bubbles/viewport` - Scrollable preview pane
-- **Styling**: [Lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling library
+  - `bubbles/list` — selectable list of search results
+  - `bubbles/viewport` — scrollable preview and detail panes
+  - `bubbles/textinput` — search term input
+- **Styling**: [Lipgloss](https://github.com/charmbracelet/lipgloss) — terminal styling library
 
 ### Data Flow
 
@@ -58,8 +68,44 @@ User enters: diary neil search "encryption"
                     ↓
       User presses Enter
                     ↓
-    Exit TUI, open full entry in glow
+    Load and decrypt selected entry
+                    ↓
+    Render with Glamour (async)
+                    ↓
+    Display in detail viewport
+    (scrollable, full-screen)
 ```
+
+## Detail View: Glamour Rendering
+
+When the user presses Enter on a search result, the entry is loaded in two async phases:
+
+1. **Decrypt** (`loadEntry`) — reads and decrypts the `.md.age` file
+2. **Render** (`renderContent`) — renders markdown with Glamour using pre-detected style
+
+```go
+// Phase 1: Decrypt (async)
+func (m Model) loadEntry(date string) tea.Cmd {
+    return func() tea.Msg {
+        plaintext, _ := crypto.Decrypt(encrypted, m.keyPath)
+        return entryLoadedMsg{date: date, plaintext: string(plaintext)}
+    }
+}
+
+// Phase 2: Render (async, uses pre-detected style)
+func (m Model) renderContent() tea.Cmd {
+    return func() tea.Msg {
+        renderer, _ := glamour.NewTermRenderer(
+            glamour.WithStylePath(m.glamourStyle), // "dark" or "light"
+            glamour.WithWordWrap(width),
+        )
+        rendered, _ := renderer.Render(m.detailPlaintext)
+        return contentRenderedMsg{content: rendered}
+    }
+}
+```
+
+Terminal style is pre-detected in `NewSearchModel()` before entering alt-screen to avoid the slow `termenv.HasDarkBackground()` query inside alt-screen mode. See [GLAMOUR-OPTIMIZATION.md](GLAMOUR-OPTIMIZATION.md) for details.
 
 ## Performance Optimizations
 
@@ -87,9 +133,9 @@ for _, date := range entries {
 - CPU-bound task scales with cores
 - No sequential bottleneck
 
-### Streaming Results
+### Async Rendering
 
-Results are displayed as they're found, not after all searches complete. This provides instant feedback even for large diary collections.
+Glamour rendering runs via `tea.Cmd` to avoid blocking the UI. The viewport appears immediately while markdown renders in the background.
 
 ### Match Limiting
 
@@ -108,18 +154,12 @@ highlightStyle = lipgloss.NewStyle().
     Bold(true)
 ```
 
-**Visual result:**
-```
-Started work on encryption feature
-                ^^^^^^^^^^
-```
-
 ### Context Display
 
 Each match shows:
-1. **Line number** - Position in the original entry
-2. **Matched line** - Full line containing the search term
-3. **Highlighting** - Search term emphasized with color
+1. **Line number** — position in the original entry
+2. **Matched line** — full line containing the search term
+3. **Highlighting** — search term emphasized with color
 
 ### Navigation
 
@@ -127,14 +167,19 @@ Each match shows:
 |-----|--------|
 | `↑`/`k` | Previous entry |
 | `↓`/`j` | Next entry |
-| `Enter` | Open full entry in glow |
+| `Enter` | View full entry (Glamour-rendered detail view) |
+| `/` | New search |
 | `q`/`Esc`/`Ctrl+C` | Quit search |
 
-### Workflow Integration
+**In detail view:**
 
-After TUI exits:
-- If user pressed `q`: Return to terminal
-- If user pressed `Enter`: Launch `glow` with selected entry
+| Key | Action |
+|-----|--------|
+| `↑`/`↓`/`PgUp`/`PgDn` | Scroll content |
+| `q`/`Esc` | Back to search results |
+| `Ctrl+C` | Quit |
+
+### Workflow
 
 ```bash
 # User flow:
@@ -142,9 +187,10 @@ diary neil search "encryption"
 # → TUI opens, shows results
 # → User selects 2026-02-07
 # → Presses Enter
-# → TUI exits
-# → Glow opens with full entry
-# → Beautiful markdown rendering
+# → Detail view opens with Glamour-rendered markdown
+# → User scrolls through entry
+# → Presses q/esc to return to search results
+# → Selection is preserved
 ```
 
 ## Implementation Details
@@ -153,14 +199,20 @@ diary neil search "encryption"
 
 ```go
 type Model struct {
-    user       string             // Diary user
-    searchTerm string             // Search query
-    results    []SearchResult     // Matched entries
-    list       list.Model         // Top pane
-    viewport   viewport.Model     // Bottom pane
-    ready      bool               // UI ready flag
-    keyPath    string             // Encryption key path
-    openDate   string             // Date to open after TUI
+    user           string
+    searchTerm     string
+    results        []SearchResult
+    list           list.Model         // Top pane
+    viewport       viewport.Model     // Bottom pane (preview)
+    searchInput    textinput.Model    // Search input field
+    inputMode      bool               // True when typing search term
+    glamourStyle   string             // Pre-detected "dark" or "light"
+
+    // Detail view state
+    mode              viewMode        // searchView or detailView
+    detailViewport    viewport.Model  // Full-screen detail viewport
+    detailDate        string
+    detailPlaintext   string          // Raw markdown for re-rendering on resize
 }
 ```
 
@@ -172,26 +224,16 @@ Bubbletea uses Elm architecture:
 View → User Input → Update → View → ...
 ```
 
-1. **Init**: Launch parallel search
-2. **Update**: Handle messages (search complete, key press, window resize)
-3. **View**: Render split pane UI
+1. **Init**: Launch parallel search (or enter input mode)
+2. **Update**: Handle messages (search complete, entry loaded, content rendered, key press, window resize)
+3. **View**: Render based on current mode (input / search results / detail)
 
-### Message Handling
+### Message Types
 
 ```go
-case searchCompleteMsg:
-    // Search finished, populate list
-    m.results = msg.results
-    m.list.SetItems(items)
-    m.updatePreview()
-
-case tea.KeyMsg:
-    switch msg.String() {
-    case "enter":
-        // Open selected entry
-        m.openDate = result.date
-        return m, tea.Quit
-    }
+searchCompleteMsg  // Search finished, populate list
+entryLoadedMsg     // Entry decrypted, switch to detail view
+contentRenderedMsg // Glamour render complete, set viewport content
 ```
 
 ## Security Considerations
@@ -215,75 +257,22 @@ Only user with valid key can search their entries.
 
 ## Testing
 
+### Automated Testing
+
+- Unit tests for search logic (match finding, highlighting, context extraction)
+- Integration tests for full workflow (encrypt → search → verify matches)
+
 ### Manual Testing
 
 ```bash
-cd /Users/neil/Code/guion-opensource/diary-cli
-./test-search.sh
+diary neil search "term"     # Interactive search
+diary neil search            # Opens input mode first
 ```
-
-This script:
-1. Builds the binary
-2. Launches search TUI
-3. Demonstrates interactive navigation
-
-### Automated Testing
-
-TUI testing is challenging due to terminal dependency. Current approach:
-- Unit test search logic (match finding, highlighting)
-- Integration test full workflow (outside TUI)
-
-Future: Use [teatest](https://github.com/charmbracelet/bubbletea/tree/master/teatest) for TUI testing.
-
-## Future Enhancements
-
-### Planned Features
-
-1. **Regex search** - Pattern matching beyond literal strings
-2. **Case sensitivity toggle** - `Ctrl+S` to toggle case matching
-3. **Date range filter** - Search only within date range
-4. **Export results** - Save matches to file
-5. **Context adjustment** - `+`/`-` keys to expand/reduce context lines
-
-### Performance Improvements
-
-1. **Search index** - Pre-computed index for instant search
-2. **Incremental search** - Type-ahead filtering
-3. **Result caching** - Cache recent searches
-
-### UX Enhancements
-
-1. **Fuzzy matching** - Typo-tolerant search
-2. **Syntax highlighting** - Color code markdown in preview
-3. **Multi-term search** - AND/OR operators
-4. **Search history** - Recall previous searches
-
-## Troubleshooting
-
-### "could not open a new TTY: open /dev/tty: device not configured"
-
-**Cause:** Running in non-interactive shell (e.g., via SSH without TTY allocation)
-
-**Solution:** Run in interactive terminal:
-```bash
-ssh -t user@host diary neil search "term"
-```
-
-### Slow search on many entries
-
-**Expected:** First search will be slower (cold cache). Subsequent searches faster.
-
-**Optimization:** Search index (planned feature) will eliminate this.
-
-### Highlighting not visible
-
-**Cause:** Terminal doesn't support ANSI colors
-
-**Solution:** Use modern terminal (iTerm2, Alacritty, WezTerm, etc.)
 
 ## References
 
 - [Bubbletea Tutorial](https://github.com/charmbracelet/bubbletea/tree/master/tutorials)
 - [Bubbles Components](https://github.com/charmbracelet/bubbles)
+- [Glamour](https://github.com/charmbracelet/glamour)
 - [Lipgloss Styling](https://github.com/charmbracelet/lipgloss)
-- [Age Encryption](https://age-encryption.org/)
+- [GLAMOUR-OPTIMIZATION.md](GLAMOUR-OPTIMIZATION.md) — detailed notes on the Glamour integration

@@ -44,7 +44,7 @@ diary neil edit 2026-02-07   # Edit specific date
 
 - If no date: shows **latest** diary entry for user
 - If date specified: shows that specific entry
-- Displays in terminal (optionally with glow for markdown rendering)
+- Displays in terminal (plain text or interactive viewer with -t flag)
 
 **Example:**
 ```bash
@@ -234,9 +234,9 @@ diary neil list
 3. **Plaintext:** Only in RAM during read/edit/append
 4. **Git:** Tracks encrypted files only
 
-## No TUI Selection Needed
+## Interactive Viewer
 
-- `read` without date = latest entry (simple, fast)
-- `list` shows all dates (if user wants to browse)
-- `read {date}` for specific entry
-- Simple, no interactive selection needed
+- `diary {user}` = latest entry in interactive viewer with J/K navigation
+- `diary {user} read` = plain text output (for agents/scripts)
+- `diary {user} read -t` = interactive viewer
+- `diary {user} search` = interactive search TUI with detail view

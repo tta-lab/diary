@@ -78,9 +78,10 @@ git commit -m "chore(diary): initialize diary repository"
 ### Quick view (default)
 
 ```bash
-# Read latest entry with glow (beautiful markdown rendering)
+# Read latest entry in interactive viewer (markdown rendering + scrolling)
 diary neil
 
+# Navigate between entries with J/K (shift+j/k)
 # Same as: diary neil read -t
 ```
 
@@ -106,7 +107,7 @@ Save and exit - the entry will be encrypted and auto-committed.
 # Read latest entry (plain text)
 diary neil read
 
-# Read with glow rendering (human-friendly)
+# Read in interactive viewer (human-friendly)
 diary neil read -t
 
 # Read specific date
@@ -135,7 +136,7 @@ diary neil search "encryption"
 **Interactive TUI features:**
 - 📋 Top pane: List of matching entries with match counts
 - 👁️ Bottom pane: Live preview with highlighted search terms
-- ⌨️ Navigation: Arrow keys to select, Enter to view full entry in glow
+- ⌨️ Navigation: Arrow keys to select, Enter to view full entry
 - 🚪 Quit: Press 'q' or Esc
 
 **Performance:**
@@ -211,14 +212,14 @@ Each user's diaries are isolated and cannot be read by others without the key.
 
 **Implemented** ✅:
 - [x] Age encryption/decryption with armor encoding
-- [x] Read command (plain + glow rendering)
+- [x] Read command (plain + interactive markdown viewer)
 - [x] Append command (for agents/scripts)
 - [x] Edit command (opens $EDITOR, works with all editors)
 - [x] List command (greppable output)
 - [x] Search command (interactive TUI with bubbletea)
 - [x] Git auto-commit integration
 - [x] Multi-user support with auto-setup
-- [x] Markdown rendering with glow
+- [x] Markdown rendering with Glamour (in-app, no external dependency)
 - [x] Error handling
 - [x] Tests for core encryption
 - [x] Basic documentation

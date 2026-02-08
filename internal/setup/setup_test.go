@@ -11,9 +11,7 @@ func TestEnsureUserSetup(t *testing.T) {
 	tmpHome := t.TempDir()
 
 	// Override home directory for test
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpHome)
 
 	// Test user
 	user := "testuser"
@@ -70,9 +68,7 @@ func TestMultipleUsers(t *testing.T) {
 	tmpHome := t.TempDir()
 
 	// Override home directory for test
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpHome)
-	defer os.Setenv("HOME", originalHome)
+	t.Setenv("HOME", tmpHome)
 
 	// Setup multiple users
 	users := []string{"alice", "bob", "charlie"}

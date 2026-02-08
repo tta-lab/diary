@@ -15,9 +15,9 @@ echo
 echo "📋 Three improvements to test:"
 echo
 echo "1️⃣  After pressing Enter to view entry:"
-echo "   → Glow opens, shows full entry"
-echo "   → Press 'q' to quit glow"
-echo "   → You return to search results (not shell!)"
+echo "   → Detail view opens with Glamour-rendered markdown"
+echo "   → Press 'q' to return to search results"
+echo "   → Selection is preserved"
 echo
 echo "2️⃣  Start search without term:"
 echo "   → Opens interactive search input"

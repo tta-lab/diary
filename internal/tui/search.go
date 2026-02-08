@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	"github.com/neilguion/diary-cli/internal/crypto"
 	"github.com/neilguion/diary-cli/internal/logger"
 	"github.com/neilguion/diary-cli/internal/storage"
@@ -104,6 +106,7 @@ type Model struct {
 	width          int
 	height         int
 	keyPath        string
+	glamourStyle   string // pre-detected "dark" or "light"
 	quitting       bool
 	initialIndex   int    // Initial selection index to restore
 
@@ -146,10 +149,17 @@ func NewSearchModel(user, searchTerm, keyPath string) Model {
 		ti.Blur()
 	}
 
+	// Pre-detect terminal style before alt-screen
+	glamourStyle := "dark"
+	if !termenv.HasDarkBackground() {
+		glamourStyle = "light"
+	}
+
 	return Model{
 		user:           user,
 		searchTerm:     searchTerm,
 		keyPath:        keyPath,
+		glamourStyle:   glamourStyle,
 		list:           list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
 		viewport:       viewport.New(0, 0),
 		searchInput:    ti,
@@ -205,7 +215,10 @@ func (m Model) performSearch() tea.Msg {
 	}
 
 	// Sort by date descending (newest first)
-	// Simple sort: just reverse if needed
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].date > results[j].date
+	})
+
 	return searchCompleteMsg{results: results}
 }
 
@@ -238,26 +251,27 @@ func (m Model) loadEntry(date string) tea.Cmd {
 	}
 }
 
-// renderContent renders markdown with Glamour (like Glow's renderWithGlamour)
+// renderContent renders markdown with Glamour using pre-detected style
 func (m Model) renderContent() tea.Cmd {
+	width := m.detailViewport.Width
+	plaintext := m.detailPlaintext
+	style := m.glamourStyle
 	return func() tea.Msg {
-		// Use viewport width like Glow does
-		width := m.detailViewport.Width
 		if width <= 0 {
 			width = 80 // Safe default
 		}
 
 		renderer, err := glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
+			glamour.WithStylePath(style),
 			glamour.WithWordWrap(width),
 		)
 		if err != nil {
-			return contentRenderedMsg{content: m.detailPlaintext} // Fallback to plaintext
+			return contentRenderedMsg{content: plaintext} // Fallback to plaintext
 		}
 
-		rendered, err := renderer.Render(m.detailPlaintext)
+		rendered, err := renderer.Render(plaintext)
 		if err != nil {
-			return contentRenderedMsg{content: m.detailPlaintext} // Fallback to plaintext
+			return contentRenderedMsg{content: plaintext} // Fallback to plaintext
 		}
 
 		return contentRenderedMsg{content: rendered}
@@ -357,7 +371,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.detailViewport.Height = msg.Height - 6
 		}
 
-		// Re-render detail view on resize (like Glow does)
+		// Re-render detail view on resize
 		if m.mode == detailView && m.detailPlaintext != "" {
 			return m, m.renderContent()
 		}
@@ -395,7 +409,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detailPlaintext = msg.plaintext
 		logger.Debug("switched to detail view, triggering render")
 
-		// Trigger render with Glamour (like Glow does)
+		// Trigger Glamour render
 		return m, m.renderContent()
 
 	case contentRenderedMsg:
@@ -435,7 +449,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			key := msg.String()
 
 			// Ignore ANSI escape sequences (terminal color queries, etc.)
-			if strings.Contains(key, "rgb:") || strings.Contains(key, "alt+") && len(key) > 5 {
+			if strings.Contains(key, "rgb:") || (strings.Contains(key, "alt+") && len(key) > 5) {
 				return m, nil
 			}
 

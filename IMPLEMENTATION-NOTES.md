@@ -241,30 +241,42 @@ go get filippo.io/age/armor
 
 ## Markdown Rendering
 
-### Phase 1-3 (MVP): Use glow CLI
+### Implementation: Direct Glamour + Bubbles Viewport
 
-For `read` command, pipe decrypted markdown to `glow` for terminal rendering:
+For the search TUI, we use Glamour for markdown rendering and Bubbles Viewport for scrollable display:
 
 ```go
-func displayMarkdown(plaintext []byte) error {
-    cmd := exec.Command("glow", "-")
-    cmd.Stdin = bytes.NewReader(plaintext)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    return cmd.Run()
-}
+// renderContent renders markdown with Glamour (like Glow's renderWithGlamour)
+func (m Model) renderContent() tea.Cmd {
+    return func() tea.Msg {
+        width := m.detailViewport.Width
+        if width <= 0 {
+            width = 80 // Safe default
+        }
 
-// Usage in read command
-plaintext, _ := crypto.Decrypt(ciphertext, keyPath)
-if err := displayMarkdown(plaintext); err != nil {
-    // Fallback: just print plain text
-    fmt.Println(string(plaintext))
+        renderer, err := glamour.NewTermRenderer(
+            glamour.WithAutoStyle(),
+            glamour.WithWordWrap(width),
+        )
+        if err != nil {
+            return contentRenderedMsg{content: m.detailPlaintext} // Fallback to plaintext
+        }
+
+        rendered, err := renderer.Render(m.detailPlaintext)
+        if err != nil {
+            return contentRenderedMsg{content: m.detailPlaintext} // Fallback to plaintext
+        }
+
+        return contentRenderedMsg{content: rendered}
+    }
 }
 ```
 
-**Fallback:** If `glow` not installed, display plain text.
-
-**Future:** Build custom markdown renderer when needed.
+**Benefits:**
+- No external dependencies (Glow was just a wrapper around Glamour + Viewport)
+- Faster (no subprocess spawn)
+- Better TUI integration (consistent styling)
+- Direct control over rendering options
 
 ## Next Steps
 
@@ -272,4 +284,4 @@ if err := displayMarkdown(plaintext); err != nil {
 2. Implement `internal/crypto/age.go` following patterns above
 3. Write unit tests
 4. Test encrypt/decrypt round-trip
-5. Move to Phase 2: implement read/append commands with glow rendering
+5. Move to Phase 2: implement read/append commands with Glamour rendering
