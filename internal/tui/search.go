@@ -8,9 +8,11 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/glamour"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/neilguion/diary-cli/internal/crypto"
+	"github.com/neilguion/diary-cli/internal/logger"
 	"github.com/neilguion/diary-cli/internal/storage"
 )
 
@@ -82,26 +84,48 @@ func (r SearchResult) FilterValue() string {
 	return r.date
 }
 
+type viewMode int
+
+const (
+	searchView viewMode = iota
+	detailView
+)
+
 // Model is the bubbletea model for search TUI
 type Model struct {
-	user          string
-	searchTerm    string
-	results       []SearchResult
-	list          list.Model
-	viewport      viewport.Model
-	searchInput   textinput.Model
-	inputMode     bool   // True when user is typing search term
-	ready         bool
-	width         int
-	height        int
-	keyPath       string
-	quitting      bool
-	openDate      string // Set when user wants to open full entry
-	initialIndex  int    // Initial selection index to restore
+	user           string
+	searchTerm     string
+	results        []SearchResult
+	list           list.Model
+	viewport       viewport.Model
+	searchInput    textinput.Model
+	inputMode      bool   // True when user is typing search term
+	ready          bool
+	width          int
+	height         int
+	keyPath        string
+	quitting       bool
+	initialIndex   int    // Initial selection index to restore
+
+	// Detail view state
+	mode              viewMode
+	detailViewport    viewport.Model
+	detailDate        string
+	detailPlaintext   string  // Decrypted markdown (for re-rendering on resize)
 }
 
 type searchCompleteMsg struct {
 	results []SearchResult
+}
+
+type entryLoadedMsg struct {
+	date      string
+	plaintext string  // Store decrypted markdown, not rendered
+	err       error
+}
+
+type contentRenderedMsg struct {
+	content string
 }
 
 // NewSearchModel creates a new search TUI model
@@ -123,14 +147,16 @@ func NewSearchModel(user, searchTerm, keyPath string) Model {
 	}
 
 	return Model{
-		user:         user,
-		searchTerm:   searchTerm,
-		keyPath:      keyPath,
-		list:         list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
-		viewport:     viewport.New(0, 0),
-		searchInput:  ti,
-		inputMode:    inputMode,
-		initialIndex: 0,
+		user:           user,
+		searchTerm:     searchTerm,
+		keyPath:        keyPath,
+		list:           list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0),
+		viewport:       viewport.New(0, 0),
+		searchInput:    ti,
+		inputMode:      inputMode,
+		initialIndex:   0,
+		mode:           searchView,
+		detailViewport: viewport.New(0, 0),
 	}
 }
 
@@ -181,6 +207,61 @@ func (m Model) performSearch() tea.Msg {
 	// Sort by date descending (newest first)
 	// Simple sort: just reverse if needed
 	return searchCompleteMsg{results: results}
+}
+
+// loadEntry loads and decrypts a diary entry (doesn't render yet)
+func (m Model) loadEntry(date string) tea.Cmd {
+	return func() tea.Msg {
+		// Get entry path
+		entryPath, err := storage.DiaryPath(m.user, date)
+		if err != nil {
+			return entryLoadedMsg{date: date, err: err}
+		}
+
+		// Read encrypted content
+		encrypted, err := storage.ReadEntry(entryPath)
+		if err != nil {
+			return entryLoadedMsg{date: date, err: err}
+		}
+
+		// Decrypt (but don't render yet - we need width first)
+		plaintext, err := crypto.Decrypt(encrypted, m.keyPath)
+		if err != nil {
+			return entryLoadedMsg{date: date, err: err}
+		}
+
+		return entryLoadedMsg{
+			date:      date,
+			plaintext: string(plaintext),
+			err:       nil,
+		}
+	}
+}
+
+// renderContent renders markdown with Glamour (like Glow's renderWithGlamour)
+func (m Model) renderContent() tea.Cmd {
+	return func() tea.Msg {
+		// Use viewport width like Glow does
+		width := m.detailViewport.Width
+		if width <= 0 {
+			width = 80 // Safe default
+		}
+
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(width),
+		)
+		if err != nil {
+			return contentRenderedMsg{content: m.detailPlaintext} // Fallback to plaintext
+		}
+
+		rendered, err := renderer.Render(m.detailPlaintext)
+		if err != nil {
+			return contentRenderedMsg{content: m.detailPlaintext} // Fallback to plaintext
+		}
+
+		return contentRenderedMsg{content: rendered}
+	}
 }
 
 // searchEntry searches a single diary entry
@@ -251,6 +332,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	// Debug current mode
+	if _, ok := msg.(tea.KeyMsg); ok {
+		logger.Debug("Update received KeyMsg", "mode", m.mode, "inputMode", m.inputMode)
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -260,11 +346,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list.SetSize(msg.Width, listHeight)
 			m.viewport = viewport.New(msg.Width-4, msg.Height-listHeight-6)
 			m.viewport.Style = borderStyle
+			m.detailViewport = viewport.New(msg.Width-4, msg.Height-6)
+			m.detailViewport.Style = borderStyle
 			m.ready = true
 		} else {
 			m.list.SetSize(msg.Width, listHeight)
 			m.viewport.Width = msg.Width - 4
 			m.viewport.Height = msg.Height - listHeight - 6
+			m.detailViewport.Width = msg.Width - 4
+			m.detailViewport.Height = msg.Height - 6
+		}
+
+		// Re-render detail view on resize (like Glow does)
+		if m.mode == detailView && m.detailPlaintext != "" {
+			return m, m.renderContent()
 		}
 
 	case searchCompleteMsg:
@@ -277,7 +372,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.Title = fmt.Sprintf("Search: \"%s\" (%d entries)", m.searchTerm, len(m.results))
 
 		// Restore previous selection if set
-		if m.initialIndex > 0 && m.initialIndex < len(m.results) {
+		if m.initialIndex >= 0 && m.initialIndex < len(m.results) {
 			m.list.Select(m.initialIndex)
 		}
 
@@ -286,8 +381,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.updatePreview()
 		}
 
+	case entryLoadedMsg:
+		logger.Debug("entryLoadedMsg received", "date", msg.date, "err", msg.err)
+		if msg.err != nil {
+			logger.Error("error loading entry", "err", msg.err)
+			// TODO: Show error in UI
+			return m, nil
+		}
+
+		// Store plaintext and switch to detail view
+		m.mode = detailView
+		m.detailDate = msg.date
+		m.detailPlaintext = msg.plaintext
+		logger.Debug("switched to detail view, triggering render")
+
+		// Trigger render with Glamour (like Glow does)
+		return m, m.renderContent()
+
+	case contentRenderedMsg:
+		// Rendered content is ready, set it on viewport (only if still in detail view)
+		logger.Debug("contentRenderedMsg received", "contentLen", len(msg.content), "mode", m.mode)
+		if m.mode == detailView {
+			m.detailViewport.SetContent(msg.content)
+		} else {
+			logger.Debug("ignoring contentRenderedMsg - no longer in detail view")
+		}
+
 	case tea.KeyMsg:
-		// Handle input mode separately
+		// Handle input mode
 		if m.inputMode {
 			switch msg.String() {
 			case "enter":
@@ -309,8 +430,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.searchInput.Blur()
 				m.searchInput.SetValue(m.searchTerm)
 			}
+		} else if m.mode == detailView {
+			// Detail view key handling
+			key := msg.String()
+
+			// Ignore ANSI escape sequences (terminal color queries, etc.)
+			if strings.Contains(key, "rgb:") || strings.Contains(key, "alt+") && len(key) > 5 {
+				return m, nil
+			}
+
+			logger.Debug("key in detail view", "key", key, "mode", m.mode)
+			switch key {
+			case "q", "esc":
+				// Return to search view
+				logger.Debug("returning to search view from detail view")
+				m.mode = searchView
+				return m, nil
+
+			case "ctrl+c":
+				m.quitting = true
+				return m, tea.Quit
+			}
 		} else {
-			// Results mode
+			// Search results view key handling
 			switch msg.String() {
 			case "q", "ctrl+c":
 				m.quitting = true
@@ -329,24 +471,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 
 			case "enter":
-				// Open selected entry in glow
+				// Load and display entry in detail view
 				if len(m.results) > 0 {
 					selected := m.list.SelectedItem()
 					if result, ok := selected.(SearchResult); ok {
-						m.openDate = result.date
-						return m, tea.Quit
+						logger.Debug("enter pressed in search view", "date", result.date, "index", m.list.Index())
+						return m, m.loadEntry(result.date)
 					}
 				}
 			}
 		}
 	}
 
-	// Update search input if in input mode
-	if m.inputMode {
+	// Update components based on current mode
+	if m.mode == detailView {
+		// Detail view: only update detail viewport
+		m.detailViewport, cmd = m.detailViewport.Update(msg)
+		cmds = append(cmds, cmd)
+	} else if m.inputMode {
+		// Input mode: only update search input
 		m.searchInput, cmd = m.searchInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else {
-		// Update list only when not in input mode
+		// Search results mode: update list and preview viewport
 		m.list, cmd = m.list.Update(msg)
 		cmds = append(cmds, cmd)
 
@@ -400,7 +547,7 @@ func (m *Model) updatePreview() {
 		}
 
 		preview.WriteString("\n\n")
-		preview.WriteString(dimStyle.Render("Press Enter to view full entry in glow"))
+		preview.WriteString(dimStyle.Render("Press Enter to view full entry"))
 
 		m.viewport.SetContent(preview.String())
 	}
@@ -445,6 +592,18 @@ func (m Model) View() string {
 		return ""
 	}
 
+	// Detail view mode
+	if m.mode == detailView {
+		help := helpStyle.Render("↑/↓/pgup/pgdn: scroll • q/esc: back to search")
+		title := titleStyle.Render(fmt.Sprintf("📅 %s", m.detailDate))
+
+		return fmt.Sprintf("%s\n\n%s\n%s",
+			title,
+			m.detailViewport.View(),
+			help,
+		)
+	}
+
 	// Input mode view
 	if m.inputMode {
 		var help string
@@ -460,7 +619,7 @@ func (m Model) View() string {
 		)
 	}
 
-	// Results mode view
+	// Search results mode view
 	help := helpStyle.Render("↑/↓: navigate • enter: view full entry • /: new search • q: quit")
 
 	return fmt.Sprintf("%s\n\n%s\n%s",
@@ -470,23 +629,3 @@ func (m Model) View() string {
 	)
 }
 
-// GetOpenDate returns the date to open (if user pressed Enter)
-func (m Model) GetOpenDate() string {
-	return m.openDate
-}
-
-// GetSearchTerm returns the current search term
-func (m Model) GetSearchTerm() string {
-	return m.searchTerm
-}
-
-// GetSelectedIndex returns the currently selected list index
-func (m Model) GetSelectedIndex() int {
-	return m.list.Index()
-}
-
-// SetSelectedIndex sets the initial list selection index
-// This is applied after search results are loaded
-func (m *Model) SetSelectedIndex(index int) {
-	m.initialIndex = index
-}

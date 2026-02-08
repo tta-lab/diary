@@ -232,39 +232,3 @@ func TestSearchResultFilterValue(t *testing.T) {
 	}
 }
 
-func TestModelGetSearchTerm(t *testing.T) {
-	model := Model{searchTerm: "encryption"}
-
-	if model.GetSearchTerm() != "encryption" {
-		t.Errorf("Expected 'encryption', got %s", model.GetSearchTerm())
-	}
-}
-
-func TestModelGetOpenDate(t *testing.T) {
-	tests := []struct {
-		name     string
-		openDate string
-		want     string
-	}{
-		{
-			name:     "with date",
-			openDate: "2026-02-07",
-			want:     "2026-02-07",
-		},
-		{
-			name:     "empty",
-			openDate: "",
-			want:     "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			model := Model{openDate: tt.openDate}
-
-			if model.GetOpenDate() != tt.want {
-				t.Errorf("Expected %q, got %s", tt.want, model.GetOpenDate())
-			}
-		})
-	}
-}

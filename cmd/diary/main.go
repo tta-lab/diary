@@ -14,6 +14,7 @@ import (
 	"github.com/neilguion/diary-cli/internal/crypto"
 	"github.com/neilguion/diary-cli/internal/editor"
 	"github.com/neilguion/diary-cli/internal/git"
+	"github.com/neilguion/diary-cli/internal/logger"
 	"github.com/neilguion/diary-cli/internal/setup"
 	"github.com/neilguion/diary-cli/internal/storage"
 	"github.com/neilguion/diary-cli/internal/tui"
@@ -22,6 +23,15 @@ import (
 const version = "0.1.0"
 
 func main() {
+	// Setup logging
+	closeLog, err := logger.Setup()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to setup logging: %v\n", err)
+	}
+	if closeLog != nil {
+		defer closeLog()
+	}
+
 	// Handle global commands (no user needed)
 	if len(os.Args) >= 2 {
 		arg := os.Args[1]
@@ -449,42 +459,14 @@ func handleSearch(user string, args []string) {
 		os.Exit(1)
 	}
 
-	// Track selection index across iterations
-	selectedIndex := 0
+	// Launch interactive TUI
+	model := tui.NewSearchModel(user, term, keyPath)
+	p := tea.NewProgram(model, tea.WithAltScreen())
 
-	// Loop: TUI → view entry → return to TUI
-	for {
-		// Launch interactive TUI
-		model := tui.NewSearchModel(user, term, keyPath)
-
-		// Restore previous selection if returning from glow
-		model.SetSelectedIndex(selectedIndex)
-
-		p := tea.NewProgram(model, tea.WithAltScreen())
-
-		finalModel, err := p.Run()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: TUI failed: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Check if user wants to open a specific entry
-		if m, ok := finalModel.(tui.Model); ok {
-			if openDate := m.GetOpenDate(); openDate != "" {
-				// Save current selection before opening glow
-				selectedIndex = m.GetSelectedIndex()
-
-				// Open in glow
-				handleRead(user, []string{openDate, "-t"})
-
-				// After viewing, return to search with same term and selection
-				term = m.GetSearchTerm()
-				continue
-			}
-		}
-
-		// User quit, exit loop
-		break
+	_, err = p.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: TUI failed: %v\n", err)
+		os.Exit(1)
 	}
 }
 
