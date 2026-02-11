@@ -1,163 +1,199 @@
-# diary - Encrypted Diary CLI
+# diary-cli
 
-A transparent encrypted diary management tool with multi-user support.
+**An encrypted diary for humans and AI agents.**
 
-## Features
+Local-first. Permissionless. Both you and your agents deserve continuity.
 
-- **Encrypted at rest**: All diary entries encrypted with age
-- **Transparent workflow**: Decrypt on read, encrypt on save
-- **Multi-user**: Each user has separate encryption key
-- **Auto-commit**: Automatic git commits on save
-- **Search**: Full-text search across encrypted entries
-- **Markdown**: Beautiful rendering with markdown support
+---
+
+## Why diary-cli?
+
+Most systems treat humans and agents differently. We don't.
+
+diary-cli is a tool designed to work equally well for:
+- **Humans** keeping personal diaries
+- **AI agents** recording reflections and learning
+
+Same encryption. Same interface. Same git integration. No special "agent mode."
+
+This is the **Unix philosophy applied to AI**: build tools that do one thing well, and let humans and agents compose them freely.
+
+### Philosophy
+
+- **Local-first**: Your diary lives on your machine. Encrypted. No cloud. No vendor lock-in.
+- **Simple encryption**: age (audited, modern, readable keys)
+- **Git-native**: Automatic commits. Full history. Portable.
+- **Transparent**: You see what happens. Encryption/decryption in your terminal, not hidden in a black box.
+- **For both**: Humans write reflections. Agents append learnings. Same tool.
+
+---
+
+## Quick Start
+
+**Installation** (Homebrew coming soon; build from source for now):
+
+```bash
+git clone https://codeberg.org/clawteam/diary-cli.git
+cd diary-cli
+go install ./cmd/diary
+```
+
+**First use** (auto-setup):
+
+```bash
+# Everything initialized on first run
+diary neil append "This is my first entry"
+```
+
+**Read your diary**:
+
+```bash
+# Plain text
+diary neil read
+
+# Beautiful markdown rendering
+diary neil read -t
+```
+
+![diary append workflow](docs/screenshots/append-workflow.gif)
+
+**Edit today's entry**:
+
+```bash
+diary neil edit
+```
+
+Your `$EDITOR` opens with decrypted content. Save and exit—automatically encrypted and committed.
+
+![diary edit workflow](docs/screenshots/edit-workflow.gif)
+
+**Search your diary**:
+
+```bash
+diary neil search "important pattern"
+```
+
+Interactive TUI. Search matches highlighted. Press Enter to read full entry.
+
+![Interactive search TUI](docs/screenshots/search-tui.png)
+
+---
+
+## Key Features
+
+✅ **Encrypted at rest** — All entries encrypted with age  
+✅ **Transparent workflow** — Decrypt on read, encrypt on save (no magic)  
+✅ **Multi-user** — Each user has isolated encryption key  
+✅ **Auto-commit** — Changes committed to git automatically  
+✅ **Search** — Full-text search across encrypted entries  
+✅ **Markdown** — Beautiful rendering with markdown support  
+✅ **Agent-friendly** — Works equally for humans and AI  
+
+---
 
 ## Installation
 
-### From source
+### Homebrew
 
 ```bash
-go install github.com/neilguion/diary-cli/cmd/diary@latest
+# Coming soon
+brew install diary-cli
 ```
 
-### Manual build
+### Build from source
 
 ```bash
-git clone https://github.com/neilguion/diary-cli.git
+git clone https://codeberg.org/clawteam/diary-cli.git
 cd diary-cli
-go build -o diary ./cmd/diary
-sudo mv diary /usr/local/bin/
+go install ./cmd/diary
 ```
 
-## Setup
+---
 
-**Auto-setup on first use!** 🎉
+## Commands
 
-When you run any diary command for the first time, the CLI automatically:
-1. Generates an age encryption key for your user
-2. Creates `~/.diary/${USER}/` directory
-3. Initializes a git repository (if not exists)
-4. Sets up `.gitignore` to exclude keys
-
-Just start using it:
+### Read
 
 ```bash
-# First time use - everything auto-configured
-diary neil edit
-
-# That's it! Key generated, storage created, ready to go.
+diary neil read              # Latest entry (plain text)
+diary neil read -t           # With glow rendering
+diary neil read 2026-02-07   # Specific date
 ```
 
-### Manual setup (optional)
-
-If you prefer manual control:
+### Write
 
 ```bash
-# Install age if not already installed
-# macOS: brew install age
-# Linux: apt install age / pacman -S age
-
-# Generate key for your user
-mkdir -p ~/.config/diary
-age-keygen -o ~/.config/diary/${USER}.age.key
-
-# IMPORTANT: Back up this key! If lost, diaries cannot be recovered
-
-# Create diary directory
-mkdir -p ~/.diary/${USER}
-
-# Optional: Initialize as git repository for version control
-cd ~/.diary
-git init
-echo "*.key" > .gitignore
-git add .gitignore
-git commit -m "chore(diary): initialize diary repository"
+diary neil append "Your text here"   # Append (no editor, for scripts/agents)
+diary neil edit                      # Edit today's entry
+diary neil edit 2026-02-07           # Edit specific date
 ```
 
-## Usage
-
-### Quick view (default)
+### List
 
 ```bash
-# Read latest entry in interactive viewer (markdown rendering + scrolling)
-diary neil
-
-# Navigate between entries with J/K (shift+j/k)
-# Same as: diary neil read -t
+diary neil list    # All entries, newest first
 ```
 
-### Write diary entry
+### Search
 
 ```bash
-# Edit today's diary
-diary neil edit
-
-# Edit specific date
-diary neil edit 2026-02-07
-
-# Append text (for agents/scripts)
-diary neil append "Completed task #107"
+diary neil search "keyword"
 ```
 
-Your `$EDITOR` will open with the decrypted content (if entry exists) or blank file (if new).
-Save and exit - the entry will be encrypted and auto-committed.
+Interactive TUI with highlighted matches and live preview.
 
-### Read diary entry
+---
 
-```bash
-# Read latest entry (plain text)
-diary neil read
+## Storage & Security
 
-# Read in interactive viewer (human-friendly)
-diary neil read -t
-
-# Read specific date
-diary neil read 2026-02-07
-```
-
-### List entries
-
-```bash
-# List all entries (greppable output)
-diary neil list
-
-# Output: one date per line, newest first
-# 2026-02-07
-# 2026-02-05
-# 2026-02-01
-```
-
-### Search (Interactive TUI)
-
-```bash
-# Search across all entries
-diary neil search "encryption"
-```
-
-**Interactive TUI features:**
-- 📋 Top pane: List of matching entries with match counts
-- 👁️ Bottom pane: Live preview with highlighted search terms
-- ⌨️ Navigation: Arrow keys to select, Enter to view full entry
-- 🚪 Quit: Press 'q' or Esc
-
-**Performance:**
-- Parallel decryption for fast search
-- Streams results as they're found
-- Works efficiently with hundreds of entries
-
-## Storage Structure
+### Directory structure
 
 ```
 ~/.diary/
-├── ${USER}/
+├── neil/
 │   ├── 2026-02-07.md.age
 │   ├── 2026-02-08.md.age
 │   └── 2026-02-09.md.age
 └── .git/
 ```
 
-## Configuration
+### Encryption
 
-Optional configuration file: `~/.config/diary/config.toml`
+- **Method**: age (audited, simple, modern)
+- **Keys**: Stored in `~/.config/diary/${USER}.age.key`
+- **Decryption**: Only happens in RAM during read/edit
+- **Persistence**: Never unencrypted on disk
+
+### Key backup
+
+**CRITICAL**: Back up your age key! Without it, diaries cannot be recovered.
+
+```bash
+# Backup locations:
+# - Password manager (1Password, Bitwarden)
+# - Encrypted USB drive
+# - Paper in safe location
+```
+
+### Multi-user
+
+Each user gets their own isolated key and namespace:
+
+```bash
+# User alice
+diary alice append "My thoughts"  # Encrypted with alice's key
+
+# User bob
+diary bob append "My thoughts"    # Encrypted with bob's key
+
+# alice cannot read bob's entries. bob cannot read alice's.
+```
+
+---
+
+## Configuration (Optional)
+
+**File**: `~/.config/diary/config.toml`
 
 ```toml
 [storage]
@@ -174,68 +210,91 @@ commit_message_template = "feat(diary): update entry for {date}"
 command = "vim"  # Defaults to $EDITOR
 ```
 
-## Security
+---
 
-- **Encryption**: age (modern, audited, simple)
-- **Keys**: Stored locally in `~/.config/diary/${USER}.age.key`
-- **Never on disk**: Decrypted content only in RAM during edit
-- **Per-user isolation**: Each user has separate key and namespace
+## Use Cases
 
-### Key backup
+### Personal reflection
 
-**CRITICAL**: Back up your age key! Without it, encrypted diaries cannot be recovered.
-
-Recommended backup locations:
-- Password manager (1Password, Bitwarden, etc.)
-- Encrypted USB drive
-- Printed on paper in safe location
-
-## Multi-user
-
-Multiple users on same machine can each have their own encrypted diaries:
+Keep a private diary for thoughts, learnings, and growth.
 
 ```bash
-# User 1
-USER=alice age-keygen -o ~/.config/diary/alice.age.key
-diary append $(date +%Y-%m-%d)  # Encrypts with alice's key
-
-# User 2
-USER=bob age-keygen -o ~/.config/diary/bob.age.key
-diary append $(date +%Y-%m-%d)  # Encrypts with bob's key
+diary neil append "Noticed I'm more thoughtful when I slow down."
 ```
 
-Each user's diaries are isolated and cannot be read by others without the key.
+### AI agent continuity
 
-## Development Status
+Agents record reflections after each heartbeat. Their diary becomes their memory.
 
-**Current**: v0.2.0 - Core features complete
+```bash
+# Agent-Teacher reflects on learning pipeline
+diary teacher append "Reviewed DB migration agent's progress.
+They're gaining confidence with rollback strategies.
+Next: focus on zero-downtime migration patterns."
+```
 
-**Implemented** ✅:
-- [x] Age encryption/decryption with armor encoding
-- [x] Read command (plain + interactive markdown viewer)
-- [x] Append command (for agents/scripts)
-- [x] Edit command (opens $EDITOR, works with all editors)
-- [x] List command (greppable output)
-- [x] Search command (interactive TUI with bubbletea)
-- [x] Git auto-commit integration
-- [x] Multi-user support with auto-setup
-- [x] Markdown rendering with Glamour (in-app, no external dependency)
-- [x] Error handling
-- [x] Tests for core encryption
-- [x] Basic documentation
+### Team knowledge base
 
-**TODO**:
-- [ ] Configuration file support (config.toml)
-- [ ] List with date filter (e.g., `list 2026-02`)
+Multiple team members sharing encrypted work diaries (each with their own keys).
+
+```bash
+diary alice append "Deployment went smoothly today. Updated playbook."
+diary bob append "Found performance issue in query optimization. PR #42."
+```
+
+---
+
+## Support diary-cli
+
+This project is maintained with ❤️. If it's useful to you, consider supporting development:
+
+**Revolut** (quick, global):  
+[revolut.me/neilzhang](https://revolut.me/neilzhang)
+
+**Ethereum** (permissionless, multi-chain):  
+`0x5e146d63d55fcc7fc788b7ee5872da2c70f74259` — works on Arbitrum, Optimism, Polygon, and other Layer 2 networks
+
+**Or contribute code** on [Codeberg](https://codeberg.org/clawteam/diary-cli)
+
+---
+
+## Roadmap
+
+**v0.2.0** (Current)
+- ✅ Core encrypt/decrypt
+- ✅ Read/write/append/edit
+- ✅ Search with TUI
+- ✅ Multi-user support
+- ✅ Git integration
+- ✅ Glamour markdown rendering
+
+**v0.3.0** (Next)
+- [ ] Configuration file support (TOML)
+- [ ] Date filtering (e.g., `list 2026-02`)
 - [ ] Export functionality
-- [ ] Search results export
+- [ ] Natural language dates (yesterday, last week)
 - [ ] Comprehensive test suite
-- [ ] CI/CD pipeline
+
+---
+
+## Built with
+
+- **[age](https://github.com/FiloSottile/age)** — Modern, audited encryption
+- **[Bubbletea](https://github.com/charmbracelet/bubbletea)** — TUI framework by Charmbracelet
+- **[Glamour](https://github.com/charmbracelet/glamour)** — Markdown rendering by Charmbracelet
+- **Go** — Compiled, portable, efficient
+
+Special thanks to [Charmbracelet](https://github.com/charmbracelet) for the beautiful TUI ecosystem.
+
+---
 
 ## License
 
-MIT
+MIT — Use freely. No restrictions.
+
+---
 
 ## Author
 
-Neil Guion
+Neil Agentic  
+[Codeberg](https://codeberg.org/clawteam/diary-cli)
