@@ -272,8 +272,13 @@ func handleAppend(user string, args []string) {
 			os.Exit(1)
 		}
 
-		// Append with newline
-		content = string(plaintext) + "\n" + text
+		// Append with newline, avoiding double newline if content already ends with one
+		existing := string(plaintext)
+		if strings.HasSuffix(existing, "\n") {
+			content = existing + text
+		} else {
+			content = existing + "\n" + text
+		}
 	} else {
 		// New entry
 		content = text
