@@ -10,8 +10,6 @@ import (
 // Open opens the content in the user's preferred editor
 // Returns the edited content and any error
 func Open(initialContent []byte) ([]byte, error) {
-	editor := getEditor()
-
 	// Create temporary file
 	tmpFile, err := os.CreateTemp("", "diary-*.md")
 	if err != nil {
@@ -26,15 +24,8 @@ func Open(initialContent []byte) ([]byte, error) {
 	}
 	tmpFile.Close()
 
-	// Parse editor command (might have args like "code --wait")
-	editorParts := strings.Fields(editor)
-	if len(editorParts) == 0 {
-		return nil, fmt.Errorf("editor command is empty")
-	}
-
-	// Build command with editor args + file path
-	args := append(editorParts[1:], tmpFile.Name())
-	cmd := exec.Command(editorParts[0], args...)
+	bin, args := buildEditorArgs(tmpFile.Name())
+	cmd := exec.Command(bin, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -60,6 +51,26 @@ func Open(initialContent []byte) ([]byte, error) {
 	}
 
 	return editedContent, nil
+}
+
+// buildEditorArgs parses the editor string and appends path, returning (binary, args).
+func buildEditorArgs(path string) (string, []string) {
+	parts := strings.Fields(getEditor())
+	if len(parts) == 0 {
+		return "vim", []string{path}
+	}
+	return parts[0], append(parts[1:], path)
+}
+
+// EditorCmd returns an exec.Cmd for opening path in the user's preferred editor.
+// The caller is responsible for running it (e.g. via tea.ExecProcess).
+func EditorCmd(path string) *exec.Cmd {
+	bin, args := buildEditorArgs(path)
+	cmd := exec.Command(bin, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd
 }
 
 func getEditor() string {

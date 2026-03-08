@@ -1,6 +1,7 @@
 package editor
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -97,5 +98,18 @@ func TestGetEditorDefaultVim(t *testing.T) {
 
 	if editor != "vim" {
 		t.Errorf("Should default to vim, got %s", editor)
+	}
+}
+
+func TestEditorCmdArgOrder(t *testing.T) {
+	// EditorCmd with "code --wait" should produce args: [code --wait <path>]
+	t.Setenv("EDITOR", "code --wait")
+	t.Setenv("VISUAL", "")
+
+	cmd := EditorCmd("/tmp/test.md")
+
+	want := []string{"code", "--wait", "/tmp/test.md"}
+	if !reflect.DeepEqual(cmd.Args, want) {
+		t.Errorf("EditorCmd args = %v, want %v", cmd.Args, want)
 	}
 }
