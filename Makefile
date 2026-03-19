@@ -1,15 +1,38 @@
-.PHONY: help gifs append-gif edit-gif clean install-vhs install-ttyd
+.PHONY: help build test fmt vet lint ci gifs append-gif edit-gif clean install-vhs install-ttyd
 
 help:
-	@echo "diary-cli GIF generation"
+	@echo "diary-cli"
 	@echo ""
 	@echo "Usage:"
+	@echo "  make build             Build the diary binary"
+	@echo "  make test              Run tests"
+	@echo "  make fmt               Format code"
+	@echo "  make vet               Run go vet"
+	@echo "  make lint              Run golangci-lint"
+	@echo "  make ci                Run fmt + vet + lint + test + build"
 	@echo "  make gifs              Generate all demo GIFs"
 	@echo "  make append-gif        Generate append workflow GIF"
 	@echo "  make edit-gif          Generate edit workflow GIF"
 	@echo "  make install-vhs       Install VHS (required for GIF generation)"
 	@echo "  make install-ttyd      Install ttyd (required by VHS)"
-	@echo "  make clean             Remove generated GIFs"
+	@echo "  make clean             Remove generated artifacts"
+
+build:
+	go build -o bin/diary ./cmd/diary
+
+test:
+	go test ./...
+
+fmt:
+	gofmt -w .
+
+vet:
+	go vet ./...
+
+lint:
+	golangci-lint run
+
+ci: fmt vet lint test build
 
 # Check if VHS is installed
 check-vhs:

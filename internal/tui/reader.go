@@ -6,8 +6,8 @@ import (
 	"os/exec"
 
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/glamour"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/neilguion/diary-cli/internal/crypto"

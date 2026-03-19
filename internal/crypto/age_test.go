@@ -17,7 +17,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 
 	// Get recipient (public key)
-	recipient := identity.Recipient().String()
+	recipient := identity.Recipient().String() //nolint:ineffassign,staticcheck
 
 	// Create temp key file
 	tmpDir := t.TempDir()
@@ -78,7 +78,7 @@ func TestEncryptDecryptLargeText(t *testing.T) {
 		t.Fatalf("failed to generate identity: %v", err)
 	}
 
-	recipient := identity.Recipient().String()
+	recipient := identity.Recipient().String() //nolint:ineffassign,staticcheck
 
 	// Create temp key file
 	tmpDir := t.TempDir()

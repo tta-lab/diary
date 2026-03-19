@@ -231,4 +231,3 @@ func TestSearchResultFilterValue(t *testing.T) {
 		t.Errorf("FilterValue should return date, got %s", filterValue)
 	}
 }
-

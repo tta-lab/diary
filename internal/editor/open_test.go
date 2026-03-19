@@ -7,10 +7,10 @@ import (
 
 func TestGetEditor(t *testing.T) {
 	tests := []struct {
-		name       string
-		setEditor  string
-		setVisual  string
-		want       string
+		name      string
+		setEditor string
+		setVisual string
+		want      string
 	}{
 		{
 			name:      "EDITOR set",
