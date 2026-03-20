@@ -15,11 +15,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Download modules
-        run: go mod download
-
       - name: Format check
-        run: make fmt && git status --porcelain | grep -q '\.go$' && exit 1 || true
+        run: make fmt && git diff --exit-code -- '*.go'
 
       - name: Vet
         run: make vet

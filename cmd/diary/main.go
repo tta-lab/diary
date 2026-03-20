@@ -224,7 +224,7 @@ func handleRead(user string, args []string) {
 		}
 
 		now := time.Now()
-		fmt.Printf("Today: %s\n", now.Format("2006-01-02 (Mon) 15:04 -07:00"))
+		fmt.Printf("Now:   %s\n", now.Format("2006-01-02 (Mon) 15:04 -07:00"))
 		fmt.Printf("Entry: %s\n\n", date)
 		fmt.Print(strings.TrimLeft(string(plaintext), "\n"))
 	}
@@ -238,24 +238,19 @@ func handleAppend(user string, args []string) {
 		if !term.IsTerminal(int(os.Stdin.Fd())) {
 			fmt.Fprintln(os.Stderr, "Warning: ignoring stdin — using positional argument")
 		}
-	} else {
-		// No positional arg: try stdin
-		if term.IsTerminal(int(os.Stdin.Fd())) {
-			fmt.Fprintln(os.Stderr, "Error: text required for append command")
-			fmt.Fprintln(os.Stderr, "Usage: diary <user> append \"text\"")
-			os.Exit(1)
-		}
+	} else if !term.IsTerminal(int(os.Stdin.Fd())) {
+		// No positional arg: read from piped stdin
 		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: failed to read stdin: %v\n", err)
 			os.Exit(1)
 		}
 		text = strings.TrimRight(string(data), "\n\r")
-		if text == "" {
-			fmt.Fprintln(os.Stderr, "Error: text required for append command")
-			fmt.Fprintln(os.Stderr, "Usage: diary <user> append \"text\"")
-			os.Exit(1)
-		}
+	}
+	if text == "" {
+		fmt.Fprintln(os.Stderr, "Error: text required for append command")
+		fmt.Fprintln(os.Stderr, "Usage: diary <user> append \"text\"")
+		os.Exit(1)
 	}
 
 	// Get today's date

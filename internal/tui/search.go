@@ -29,10 +29,6 @@ var (
 			Foreground(lipgloss.Color("205")).
 			MarginLeft(2)
 
-	selectedStyle = lipgloss.NewStyle(). //nolint:unused
-			Foreground(lipgloss.Color("170")).
-			Bold(true)
-
 	highlightStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("226")).
 			Background(lipgloss.Color("235")).
