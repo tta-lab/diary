@@ -5,20 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"filippo.io/age"
 )
 
 func TestEncryptDecrypt(t *testing.T) {
-	// Generate test identity
-	identity, err := age.GenerateX25519Identity()
-	if err != nil {
-		t.Fatalf("failed to generate identity: %v", err)
-	}
-
-	// Get recipient (public key)
-	recipient := identity.Recipient().String()
-
 	// Create temp key file
 	tmpDir := t.TempDir()
 	keyPath := filepath.Join(tmpDir, "test.age.key")
@@ -31,14 +20,12 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 	keyFile.Close()
 
-	// Load the identity we just created
+	// Load the identity we just created and get its recipient
 	loadedIdentity, err := LoadIdentity(keyPath)
 	if err != nil {
 		t.Fatalf("failed to load identity: %v", err)
 	}
-
-	// Use loaded identity's recipient for encryption
-	recipient = loadedIdentity.Recipient().String()
+	recipient := loadedIdentity.Recipient().String()
 
 	// Test data
 	plaintext := []byte("This is a test diary entry.\n\nSecond paragraph with secrets!")
@@ -72,14 +59,6 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestEncryptDecryptLargeText(t *testing.T) {
-	// Generate test identity
-	identity, err := age.GenerateX25519Identity()
-	if err != nil {
-		t.Fatalf("failed to generate identity: %v", err)
-	}
-
-	recipient := identity.Recipient().String()
-
 	// Create temp key file
 	tmpDir := t.TempDir()
 	keyPath := filepath.Join(tmpDir, "test.age.key")
@@ -92,12 +71,12 @@ func TestEncryptDecryptLargeText(t *testing.T) {
 	}
 	keyFile.Close()
 
-	// Load identity
+	// Load identity and get its recipient
 	loadedIdentity, err := LoadIdentity(keyPath)
 	if err != nil {
 		t.Fatalf("failed to load identity: %v", err)
 	}
-	recipient = loadedIdentity.Recipient().String()
+	recipient := loadedIdentity.Recipient().String()
 
 	// Large test data (simulating long diary entry)
 	plaintext := bytes.Repeat([]byte("Long diary entry paragraph. "), 1000)

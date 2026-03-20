@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
+
 	"github.com/neilguion/diary-cli/internal/crypto"
 	"github.com/neilguion/diary-cli/internal/editor"
 	"github.com/neilguion/diary-cli/internal/git"
@@ -99,7 +102,7 @@ Usage:
 Commands:
   (none)             Read latest entry in interactive viewer (default)
   read [date] [-t]   Show diary entry (plain text by default, -t for interactive viewer)
-  append "text"      Append text to today's entry (auto-creates if needed)
+  append ["text"]    Append text to today's entry (reads from stdin if no text given)
   edit [date]        Open entry in $EDITOR (today if no date, or specific date)
   list               List all available diary entries for user
   search ["term"]    Search across all diary entries (interactive if no term)
@@ -220,17 +223,35 @@ func handleRead(user string, args []string) {
 			os.Exit(1)
 		}
 
-		fmt.Print(string(plaintext))
+		now := time.Now()
+		fmt.Printf("Now:   %s\n", now.Format("2006-01-02 (Mon) 15:04 -07:00"))
+		fmt.Printf("Entry: %s\n\n", date)
+		fmt.Print(strings.TrimLeft(string(plaintext), "\n"))
 	}
 }
 
 func handleAppend(user string, args []string) {
-	if len(args) < 1 {
+	var text string
+	if len(args) >= 1 {
+		text = args[0]
+		// If stdin is also a pipe, warn that it's being ignored
+		if !term.IsTerminal(int(os.Stdin.Fd())) {
+			fmt.Fprintln(os.Stderr, "Warning: ignoring stdin — using positional argument")
+		}
+	} else if !term.IsTerminal(int(os.Stdin.Fd())) {
+		// No positional arg: read from piped stdin
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to read stdin: %v\n", err)
+			os.Exit(1)
+		}
+		text = strings.TrimRight(string(data), "\n\r")
+	}
+	if text == "" {
 		fmt.Fprintln(os.Stderr, "Error: text required for append command")
 		fmt.Fprintln(os.Stderr, "Usage: diary <user> append \"text\"")
 		os.Exit(1)
 	}
-	text := args[0]
 
 	// Get today's date
 	today := time.Now().Format("2006-01-02")

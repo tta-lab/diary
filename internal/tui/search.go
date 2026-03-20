@@ -9,8 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/glamour"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/neilguion/diary-cli/internal/crypto"
@@ -28,10 +28,6 @@ var (
 			Bold(true).
 			Foreground(lipgloss.Color("205")).
 			MarginLeft(2)
-
-	selectedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("170")).
-			Bold(true)
 
 	highlightStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("226")).
@@ -95,26 +91,26 @@ const (
 
 // Model is the bubbletea model for search TUI
 type Model struct {
-	user           string
-	searchTerm     string
-	results        []SearchResult
-	list           list.Model
-	viewport       viewport.Model
-	searchInput    textinput.Model
-	inputMode      bool   // True when user is typing search term
-	ready          bool
-	width          int
-	height         int
-	keyPath        string
-	glamourStyle   string // pre-detected "dark" or "light"
-	quitting       bool
-	initialIndex   int    // Initial selection index to restore
+	user         string
+	searchTerm   string
+	results      []SearchResult
+	list         list.Model
+	viewport     viewport.Model
+	searchInput  textinput.Model
+	inputMode    bool // True when user is typing search term
+	ready        bool
+	width        int
+	height       int
+	keyPath      string
+	glamourStyle string // pre-detected "dark" or "light"
+	quitting     bool
+	initialIndex int // Initial selection index to restore
 
 	// Detail view state
-	mode              viewMode
-	detailViewport    viewport.Model
-	detailDate        string
-	detailPlaintext   string  // Decrypted markdown (for re-rendering on resize)
+	mode            viewMode
+	detailViewport  viewport.Model
+	detailDate      string
+	detailPlaintext string // Decrypted markdown (for re-rendering on resize)
 }
 
 type searchCompleteMsg struct {
@@ -123,7 +119,7 @@ type searchCompleteMsg struct {
 
 type entryLoadedMsg struct {
 	date      string
-	plaintext string  // Store decrypted markdown, not rendered
+	plaintext string // Store decrypted markdown, not rendered
 	err       error
 }
 
@@ -642,4 +638,3 @@ func (m Model) View() string {
 		help,
 	)
 }
-

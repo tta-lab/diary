@@ -97,8 +97,8 @@ func TestListEntries(t *testing.T) {
 		"2026-02-07.md.age",
 		"2026-02-06.md.age",
 		"2026-01-15.md.age",
-		"invalid.txt",      // Should be ignored
-		"2026-02-01.md",    // Should be ignored (no .age)
+		"invalid.txt",   // Should be ignored
+		"2026-02-01.md", // Should be ignored (no .age)
 	}
 
 	for _, date := range testDates {
