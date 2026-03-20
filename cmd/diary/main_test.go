@@ -246,10 +246,3 @@ func TestReadTUISkipsHeader(t *testing.T) {
 		t.Errorf("TUI mode should not output 'Now:' header, got:\n%s", out)
 	}
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
