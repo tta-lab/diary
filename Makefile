@@ -1,10 +1,11 @@
-.PHONY: help build test fmt vet lint ci gifs append-gif edit-gif clean install-vhs install-ttyd
+.PHONY: help build install test fmt vet lint ci gifs append-gif edit-gif clean install-vhs install-ttyd
 
 help:
 	@echo "diary-cli"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make build             Build the diary binary"
+	@echo "  make install           Install to GOPATH/bin"
 	@echo "  make test              Run tests"
 	@echo "  make fmt               Format code"
 	@echo "  make vet               Run go vet"
@@ -19,6 +20,9 @@ help:
 
 build:
 	go build -o bin/diary ./cmd/diary
+
+install:
+	go install ./cmd/diary
 
 test:
 	go test ./...
