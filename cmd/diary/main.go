@@ -80,6 +80,8 @@ func main() {
 		handleAppend(user, args)
 	case "edit":
 		handleEdit(user, args)
+	case "replace":
+		handleReplace(user, args)
 	case "list":
 		handleList(user, args)
 	case "search":
@@ -103,6 +105,7 @@ Commands:
   (none)             Read latest entry in interactive viewer (default)
   read [date] [-t]   Show diary entry (plain text by default, -t for interactive viewer)
   append ["text"]    Append text to today's entry (reads from stdin if no text given)
+  replace            Replace today's entry entirely (reads from stdin)
   edit [date]        Open entry in $EDITOR (today if no date, or specific date)
   list               List all available diary entries for user
   search ["term"]    Search across all diary entries (interactive if no term)
@@ -120,6 +123,10 @@ Examples:
   diary yuki read              # Latest entry, plain text
   diary yuki read 2026-02-07   # Specific date, plain text
   diary yuki append "Completed task #107"
+
+  # Replace (fix/compact diary)
+  echo "clean content" | diary yuki replace
+  cat compacted.md | diary yuki replace
 
   # Human usage
   diary neil read -t           # Read latest in interactive viewer
@@ -414,6 +421,66 @@ func handleEdit(user string, args []string) {
 	}
 
 	fmt.Fprintf(os.Stderr, "✓ Saved diary entry for %s (%s)\n", user, date)
+}
+
+func handleReplace(user string, args []string) {
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		fmt.Fprintln(os.Stderr, "Error: replace reads from stdin only")
+		fmt.Fprintln(os.Stderr, "Usage: echo 'content' | diary <user> replace")
+		os.Exit(1)
+	}
+
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to read stdin: %v\n", err)
+		os.Exit(1)
+	}
+
+	content := strings.TrimRight(string(data), "\n\r")
+	if content == "" {
+		fmt.Fprintln(os.Stderr, "Error: replacement content is empty")
+		os.Exit(1)
+	}
+
+	today := time.Now().Format("2006-01-02")
+
+	keyPath, err := crypto.KeyPath(user)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	entryPath, err := storage.DiaryPath(user, today)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	identity, err := crypto.LoadIdentity(keyPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to load key: %v\n", err)
+		os.Exit(1)
+	}
+	recipient := identity.Recipient().String()
+
+	encrypted, err := crypto.Encrypt([]byte(content), recipient)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to encrypt: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := os.WriteFile(entryPath, encrypted, 0600); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to write entry: %v\n", err)
+		os.Exit(1)
+	}
+
+	if git.IsGitRepo(user) {
+		if err := git.AutoCommit(user, today); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: git commit failed: %v\n", err)
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "✓ Replaced diary for %s (%s)\n", user, today)
 }
 
 func handleList(user string, args []string) {

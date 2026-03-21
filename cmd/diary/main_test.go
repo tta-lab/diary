@@ -246,3 +246,72 @@ func TestReadTUISkipsHeader(t *testing.T) {
 		t.Errorf("TUI mode should not output 'Now:' header, got:\n%s", out)
 	}
 }
+
+func TestReplaceBasic(t *testing.T) {
+	user := "replacebasic"
+	setupUser(t, user)
+
+	today := time.Now().Format("2006-01-02")
+	writeEntry(t, user, today, "old content that should be gone")
+
+	newContent := "# Compacted Diary\nClean slate."
+	cmd := exec.Command(testBinary, user, "replace")
+	cmd.Stdin = strings.NewReader(newContent)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("replace failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Replaced") {
+		t.Errorf("expected success message, got: %s", out)
+	}
+
+	readCmd := exec.Command(testBinary, user, "read")
+	readOut, err := readCmd.Output()
+	if err != nil {
+		t.Fatalf("read after replace failed: %v", err)
+	}
+	output := string(readOut)
+	if strings.Contains(output, "old content that should be gone") {
+		t.Errorf("old content should be gone after replace, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Compacted Diary") {
+		t.Errorf("new content not found after replace, got:\n%s", output)
+	}
+}
+
+func TestReplaceEmptyStdin(t *testing.T) {
+	user := "replaceempty"
+	setupUser(t, user)
+
+	cmd := exec.Command(testBinary, user, "replace")
+	cmd.Stdin = strings.NewReader("")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected error for empty stdin, but succeeded: %s", out)
+	}
+	if !strings.Contains(string(out), "replacement content is empty") {
+		t.Errorf("expected 'replacement content is empty' error, got: %s", out)
+	}
+}
+
+func TestReplaceCreatesNewEntry(t *testing.T) {
+	user := "replacenew"
+	setupUser(t, user)
+
+	content := "brand new diary content"
+	cmd := exec.Command(testBinary, user, "replace")
+	cmd.Stdin = strings.NewReader(content)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("replace failed: %v\n%s", err, out)
+	}
+
+	readCmd := exec.Command(testBinary, user, "read")
+	readOut, err := readCmd.Output()
+	if err != nil {
+		t.Fatalf("read after replace failed: %v", err)
+	}
+	if !strings.Contains(string(readOut), "brand new diary content") {
+		t.Errorf("content not found after replace, got:\n%s", readOut)
+	}
+}
