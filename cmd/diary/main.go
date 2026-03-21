@@ -424,6 +424,12 @@ func handleEdit(user string, args []string) {
 }
 
 func handleReplace(user string, args []string) {
+	if len(args) > 0 {
+		fmt.Fprintln(os.Stderr, "Error: replace takes no arguments")
+		fmt.Fprintln(os.Stderr, "Usage: echo 'content' | diary <user> replace")
+		os.Exit(1)
+	}
+
 	if term.IsTerminal(int(os.Stdin.Fd())) {
 		fmt.Fprintln(os.Stderr, "Error: replace reads from stdin only")
 		fmt.Fprintln(os.Stderr, "Usage: echo 'content' | diary <user> replace")
@@ -437,7 +443,7 @@ func handleReplace(user string, args []string) {
 	}
 
 	content := strings.TrimRight(string(data), "\n\r")
-	if content == "" {
+	if strings.TrimSpace(content) == "" {
 		fmt.Fprintln(os.Stderr, "Error: replacement content is empty")
 		os.Exit(1)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -257,12 +258,13 @@ func TestReplaceBasic(t *testing.T) {
 	newContent := "# Compacted Diary\nClean slate."
 	cmd := exec.Command(testBinary, user, "replace")
 	cmd.Stdin = strings.NewReader(newContent)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("replace failed: %v\n%s", err, out)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("replace failed: %v\n%s", err, stderr.String())
 	}
-	if !strings.Contains(string(out), "Replaced") {
-		t.Errorf("expected success message, got: %s", out)
+	if !strings.Contains(stderr.String(), "Replaced") {
+		t.Errorf("expected success message on stderr, got: %s", stderr.String())
 	}
 
 	readCmd := exec.Command(testBinary, user, "read")
@@ -313,5 +315,35 @@ func TestReplaceCreatesNewEntry(t *testing.T) {
 	}
 	if !strings.Contains(string(readOut), "brand new diary content") {
 		t.Errorf("content not found after replace, got:\n%s", readOut)
+	}
+}
+
+func TestReplaceWhitespaceOnlyStdin(t *testing.T) {
+	user := "replacewhitespace"
+	setupUser(t, user)
+
+	cmd := exec.Command(testBinary, user, "replace")
+	cmd.Stdin = strings.NewReader("\t   ")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected error for whitespace-only stdin, but succeeded: %s", out)
+	}
+	if !strings.Contains(string(out), "replacement content is empty") {
+		t.Errorf("expected 'replacement content is empty' error, got: %s", out)
+	}
+}
+
+func TestReplaceRejectsPositionalArgs(t *testing.T) {
+	user := "replaceargs"
+	setupUser(t, user)
+
+	cmd := exec.Command(testBinary, user, "replace", "2026-03-21")
+	cmd.Stdin = strings.NewReader("some content")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected error for positional arg, but succeeded: %s", out)
+	}
+	if !strings.Contains(string(out), "replace takes no arguments") {
+		t.Errorf("expected 'replace takes no arguments' error, got: %s", out)
 	}
 }
