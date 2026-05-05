@@ -10,8 +10,10 @@ Local-first, git-native, multi-user encrypted diary. Every entry is age-encrypte
 ## Quick Start
 
 ```bash
-# Write today's diary (appends to existing entry or creates new)
-diary neil append "Had a productive morning. Shipped the auth refactor."
+# Write today's diary (heredoc — safe for any content)
+cat <<'EOF' | diary neil append
+Had a productive morning. Shipped the auth refactor.
+EOF
 
 # Read a specific date as plain text
 diary neil read 2026-02-17
@@ -27,12 +29,33 @@ diary neil list
 
 ### append — Add to Today's Entry
 
+Always pipe content via a quoted heredoc. Shell-quoted positional args silently mis-parse content with backticks, `$variables`, or `!` — heredoc with single-quoted delimiter (`<<'EOF'`) round-trips byte-exactly.
+
 ```bash
-diary <user> append "Your text here"
+cat <<'EOF' | diary <user> append
+Your text here. Multi-line is fine.
+Backticks `like this`, $variables, ${BRACED}, & angles round-trip exactly.
+EOF
 ```
 
 - Creates today's entry if it doesn't exist
 - Appends to existing entry with a blank line separator
+- Encrypts and auto-commits to git
+- The single quotes around the heredoc delimiter (`<<'EOF'`) are required — they prevent shell expansion of `$` and backticks
+
+### replace — Replace Today's Entry
+
+Reads from stdin only. Use when compacting or rewriting today's entry (not appending to it).
+
+```bash
+cat <<'EOF' | diary <user> replace
+# Compacted entry
+Clean replacement content here.
+EOF
+```
+
+- Overwrites today's entire entry
+- Stdin only — positional args are rejected
 - Encrypts and auto-commits to git
 
 ### read — Read Entries
@@ -80,7 +103,7 @@ diary <user> import /path/to/markdown/files
 When writing a diary entry:
 
 1. **Identify the user** — use the correct username (matches their diary namespace)
-2. **Use `append`** — the only write command available to agents
+2. **Use `append` for additive writes** — `replace` is also available when compacting or rewriting today's entry; both read from stdin (heredoc)
 3. **Write in first person** from the user's perspective, or third person if logging on behalf of a system
 4. **One thought per append** is fine — multiple appends in a day accumulate naturally
 5. **Include dates, names, and specifics** — vague entries are useless later

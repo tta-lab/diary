@@ -43,6 +43,14 @@ go install ./cmd/diary
 ```bash
 # Everything initialized on first run
 diary neil append "This is my first entry"
+
+# Or pipe via a quoted heredoc — recommended for multi-line content or content with
+# backticks, $variables, or other shell-special characters:
+cat <<'EOF' | diary neil append
+# Day one
+Multi-line entries with backticks `like this`, $variables, and ${BRACED}
+all round-trip exactly — the single-quoted heredoc delimiter prevents shell expansion.
+EOF
 ```
 
 **Read your diary**:
@@ -122,11 +130,32 @@ diary neil read 2026-02-07   # Specific date
 
 ### Write
 
+`append` accepts either a positional argument or stdin (piped input). Heredoc/stdin is recommended for multi-line text or content with backticks, `$variables`, or other shell-special characters — shell-quoted positional args can silently mis-parse them.
+
 ```bash
-diary neil append "Your text here"   # Append (no editor, for scripts/agents)
-diary neil edit                      # Edit today's entry
+# Positional (simple text)
+diary neil append "Your text here"
+
+# Heredoc (multi-line, special chars — preferred for scripts/agents)
+cat <<'EOF' | diary neil append
+Multi-line entry.
+Backticks `like this`, $variables, and special chars round-trip exactly.
+EOF
+
+# Pipe from a file
+cat notes.md | diary neil append
+
+# Replace today's entry entirely (stdin only — useful for compacting)
+cat <<'EOF' | diary neil replace
+# Compacted diary
+Clean replacement content.
+EOF
+
+diary neil edit                      # Edit today's entry interactively
 diary neil edit 2026-02-07           # Edit specific date
 ```
+
+**For `append`:** when both a positional argument and piped stdin are present, the positional argument wins and a `Warning: ignoring stdin` message is printed to stderr.
 
 ### List
 
@@ -227,10 +256,12 @@ diary neil append "Noticed I'm more thoughtful when I slow down."
 Agents record reflections after each heartbeat. Their diary becomes their memory.
 
 ```bash
-# Agent-Teacher reflects on learning pipeline
-diary teacher append "Reviewed DB migration agent's progress.
+# Agent-Teacher reflects on learning pipeline (heredoc — safe for any content)
+cat <<'EOF' | diary teacher append
+Reviewed DB migration agent's progress.
 They're gaining confidence with rollback strategies.
-Next: focus on zero-downtime migration patterns."
+Next: focus on zero-downtime migration patterns.
+EOF
 ```
 
 ### Team knowledge base
