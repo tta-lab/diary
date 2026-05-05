@@ -47,8 +47,9 @@ diary neil append "This is my first entry"
 # Or pipe via a quoted heredoc — recommended for multi-line content or content with
 # backticks, $variables, or other shell-special characters:
 cat <<'EOF' | diary neil append
-This is my first entry.
-Heredoc round-trips backticks, $variables, & special chars exactly.
+# Day one
+Multi-line entries with backticks `like this`, $variables, and ${BRACED}
+all round-trip exactly — the single-quoted heredoc delimiter prevents shell expansion.
 EOF
 ```
 
@@ -154,7 +155,7 @@ diary neil edit                      # Edit today's entry interactively
 diary neil edit 2026-02-07           # Edit specific date
 ```
 
-When both a positional argument and piped stdin are present, the positional argument wins and a `Warning: ignoring stdin` message is printed to stderr.
+**For `append`:** when both a positional argument and piped stdin are present, the positional argument wins and a `Warning: ignoring stdin` message is printed to stderr.
 
 ### List
 
