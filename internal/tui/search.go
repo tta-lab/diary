@@ -13,9 +13,9 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	"github.com/neilguion/diary-cli/internal/crypto"
-	"github.com/neilguion/diary-cli/internal/logger"
-	"github.com/neilguion/diary-cli/internal/storage"
+	"github.com/tta-lab/diary/internal/crypto"
+	"github.com/tta-lab/diary/internal/logger"
+	"github.com/tta-lab/diary/internal/storage"
 )
 
 const (

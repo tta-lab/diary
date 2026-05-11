@@ -1,4 +1,4 @@
-module github.com/neilguion/diary-cli
+module github.com/tta-lab/diary
 
 go 1.25.5
 

@@ -41,7 +41,7 @@ brews:
       email: bot@tta-lab.com
     commit_msg_template: "feat(formula): update {{ .ProjectName }} to {{ .Tag }}"
     directory: Formula
-    homepage: "https://github.com/tta-lab/diary-cli"
+    homepage: "https://github.com/tta-lab/diary"
     description: "Encrypted multi-user diary CLI for humans and agents"
     license: "MIT"
     install: |

@@ -14,13 +14,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 
-	"github.com/neilguion/diary-cli/internal/crypto"
-	"github.com/neilguion/diary-cli/internal/editor"
-	"github.com/neilguion/diary-cli/internal/git"
-	"github.com/neilguion/diary-cli/internal/logger"
-	"github.com/neilguion/diary-cli/internal/setup"
-	"github.com/neilguion/diary-cli/internal/storage"
-	"github.com/neilguion/diary-cli/internal/tui"
+	"github.com/tta-lab/diary/internal/crypto"
+	"github.com/tta-lab/diary/internal/editor"
+	"github.com/tta-lab/diary/internal/git"
+	"github.com/tta-lab/diary/internal/logger"
+	"github.com/tta-lab/diary/internal/setup"
+	"github.com/tta-lab/diary/internal/storage"
+	"github.com/tta-lab/diary/internal/tui"
 )
 
 const version = "0.1.0"
@@ -145,7 +145,7 @@ Multi-User:
   - Keys:    ~/.config/diary/<user>.age.key
   - Storage: ~/.diary/<user>/YYYY-MM-DD.md.age
 
-For more information: https://github.com/neilguion/diary-cli`)
+For more information: https://github.com/tta-lab/diary`)
 }
 
 func handleRead(user string, args []string) {
