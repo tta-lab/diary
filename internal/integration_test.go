@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/neilguion/diary-cli/internal/crypto"
-	"github.com/neilguion/diary-cli/internal/setup"
-	"github.com/neilguion/diary-cli/internal/storage"
+	"github.com/tta-lab/diary/internal/crypto"
+	"github.com/tta-lab/diary/internal/setup"
+	"github.com/tta-lab/diary/internal/storage"
 )
 
 // TestEncryptedWriteRead tests the full workflow:

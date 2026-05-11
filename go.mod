@@ -1,6 +1,6 @@
-module github.com/neilguion/diary-cli
+module github.com/tta-lab/diary
 
-go 1.25.5
+go 1.26.0
 
 require (
 	filippo.io/age v1.3.1

@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/neilguion/diary-cli/internal/crypto"
+	"github.com/tta-lab/diary/internal/crypto"
 )
 
 // EnsureUserSetup ensures all necessary directories and keys exist for a user

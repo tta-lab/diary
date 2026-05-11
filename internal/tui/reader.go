@@ -10,10 +10,10 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	"github.com/neilguion/diary-cli/internal/crypto"
-	"github.com/neilguion/diary-cli/internal/editor"
-	"github.com/neilguion/diary-cli/internal/git"
-	"github.com/neilguion/diary-cli/internal/storage"
+	"github.com/tta-lab/diary/internal/crypto"
+	"github.com/tta-lab/diary/internal/editor"
+	"github.com/tta-lab/diary/internal/git"
+	"github.com/tta-lab/diary/internal/storage"
 )
 
 type readerRenderedMsg struct {
